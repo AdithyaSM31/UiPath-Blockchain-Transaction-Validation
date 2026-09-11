@@ -1,0 +1,94 @@
+﻿<!DOCTYPE html><html lang='en'><head><meta charset='utf-8'>
+<title>Blockchain Validation Dashboard</title>
+<style>
+:root{--ink:#16202c;--muted:#68778a;--line:#dfe5ec;--bg:#f4f6f9;--card:#fff;
+--navy:#1F3864;--pass:#1a7f4b;--passbg:#e4f5ec;--warn:#8a6100;--warnbg:#fdf2d8;
+--fail:#b3261e;--failbg:#fdecea;}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+font-family:'Segoe UI',system-ui,Arial,sans-serif;font-size:14px;line-height:1.5}
+.wrap{max-width:1180px;margin:0 auto;padding:26px 22px 60px}
+header{background:var(--navy);color:#fff;padding:22px 26px;border-radius:10px}
+header h1{margin:0 0 4px;font-size:21px;letter-spacing:.2px}
+header .meta{font-size:12.5px;opacity:.85}
+header .meta b{opacity:1}
+header .mono{word-break:break-all}
+h2{font-size:15px;margin:30px 0 12px;letter-spacing:.3px;text-transform:uppercase;color:var(--muted)}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.card .n{font-size:30px;font-weight:600;line-height:1.1}
+.card .l{font-size:12px;color:var(--muted);margin-top:3px}
+.card.pass .n{color:var(--pass)} .card.warn .n{color:var(--warn)} .card.fail .n{color:var(--fail)}
+.bar{height:9px;border-radius:5px;background:var(--failbg);overflow:hidden;display:flex;margin-top:14px}
+.bar i{display:block;height:100%}
+.bar .p{background:#2e9e63} .bar .w{background:#e8b931} .bar .f{background:#d4453c}
+.banner{margin-top:16px;border-radius:10px;padding:13px 16px;font-size:13.5px;border:1px solid}
+.banner.ok{background:var(--passbg);border-color:#b7e3ca;color:var(--pass)}
+.banner.bad{background:var(--failbg);border-color:#f3c2be;color:var(--fail)}
+.banner code{font-size:12px;opacity:.8}
+.flow{display:flex;flex-wrap:wrap;gap:7px;align-items:center;background:var(--card);
+border:1px solid var(--line);border-radius:10px;padding:15px 16px}
+.step{background:#eef2f8;border:1px solid #d6e0ee;border-radius:7px;padding:6px 11px;font-size:12.5px}
+.step b{display:block;font-size:10.5px;color:var(--muted);font-weight:600}
+.arw{color:#9fb0c4}
+table{width:100%;border-collapse:collapse;background:var(--card);
+border:1px solid var(--line);border-radius:10px;overflow:hidden}
+th{background:#eef2f8;text-align:left;padding:9px 12px;font-size:12px;
+text-transform:uppercase;letter-spacing:.4px;color:#4a5b70}
+td{padding:9px 12px;border-top:1px solid var(--line);font-size:13px;vertical-align:top}
+.pill{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11.5px;font-weight:600}
+.pill.PASS{background:var(--passbg);color:var(--pass)}
+.pill.WARNING{background:var(--warnbg);color:var(--warn)}
+.pill.FAIL{background:var(--failbg);color:var(--fail)}
+.pill.off{background:#eceff3;color:var(--muted)}
+.mono{font-family:Consolas,monospace;font-size:12px}
+.muted{color:var(--muted)}
+footer{margin-top:34px;font-size:12px;color:var(--muted);text-align:center}
+@media print{body{background:#fff}.card,table,.flow{break-inside:avoid}}
+</style></head><body><div class='wrap'>
+<header><h1>Blockchain Transaction Validation &mdash; Logistics</h1>
+<div class='meta'>Run <b>20260911T055324Z-BLV-BOT-01</b> &middot; bot <b>BLV-BOT-01</b> on <b>ADITHYASM</b> &middot; source <b>MOCK</b> &middot; chain id <b>1</b></div>
+<div class='meta' style='margin-top:6px'>Contract <span class='mono'>0x0421f2bb09e32F206A76bFAef9950ECAf0ec30A7</span> &middot; generated 2026-09-11 05:53:39 UTC</div></header>
+<div class='cards'>
+<div class='card'><div class='n'>48</div><div class='l'>Transactions validated</div></div>
+<div class='card pass'><div class='n'>40</div><div class='l'>Passed</div></div>
+<div class='card warn'><div class='n'>1</div><div class='l'>Warnings</div></div>
+<div class='card fail'><div class='n'>7</div><div class='l'>Failed</div></div>
+<div class='card'><div class='n'>1</div><div class='l'>Escalated to a human</div></div>
+<div class='card'><div class='n'>83.3%</div><div class='l'>Pass rate</div></div>
+</div>
+<div class='bar'><i class='p' style='width:83.33%'></i><i class='w' style='width:2.08%'></i><i class='f' style='width:14.58%'></i></div>
+<div class='banner ok'><b>Audit trail verified.</b> VALID - 336 entries verified, chain intact from genesis to head 7c3f8c00e9a2b493...</div>
+<h2>Automation pipeline</h2><div class='flow'>
+<div class='step'><b>00</b>Read config</div><span class='arw'>&rsaquo;</span><div class='step'><b>01</b>Extract chain</div><span class='arw'>&rsaquo;</span><div class='step'><b>02</b>Extract ERP</div><span class='arw'>&rsaquo;</span><div class='step'><b>03</b>Map and join</div><span class='arw'>&rsaquo;</span><div class='step'><b>05</b>Validate R1-R6</div><span class='arw'>&rsaquo;</span><div class='step'><b>06</b>Escalate</div><span class='arw'>&rsaquo;</span><div class='step'><b>10</b>Audit log</div><span class='arw'>&rsaquo;</span><div class='step'><b>07</b>Excel report</div><span class='arw'>&rsaquo;</span><div class='step'><b>09</b>Alert</div><span class='arw'>&rsaquo;</span><div class='step'><b>12</b>Verify chain</div><span class='arw'>&rsaquo;</span><div class='step'><b>13</b>Dashboard</div></div>
+<h2>Validation rules</h2><table><tr><th>Rule</th><th>Name</th><th>Status</th><th>Severity</th><th>Findings</th><th>What it checks</th></tr>
+<tr><td class='mono'>R1</td><td>TimestampCheck</td><td><span class='pill PASS'>ENABLED</span></td><td>HIGH</td><td><span class='pill FAIL'>2</span></td><td class='muted'>Absolute gap between the on-chain timestamp and the ERP expected time. Param1 = pass tolerance (h), Param2 = warn ceiling (h).</td></tr>
+<tr><td class='mono'>R2</td><td>QuantityMatch</td><td><span class='pill PASS'>ENABLED</span></td><td>HIGH</td><td><span class='pill FAIL'>1</span></td><td class='muted'>ABI-decoded on-chain quantity against the purchase-order quantity. Param1 = permitted difference in units.</td></tr>
+<tr><td class='mono'>R3</td><td>AddressWhitelist</td><td><span class='pill PASS'>ENABLED</span></td><td>CRITICAL</td><td><span class='pill FAIL'>1</span></td><td class='muted'>Sender address must appear on the ApprovedWallets sheet. Escalates to a human reviewer.</td></tr>
+<tr><td class='mono'>R4</td><td>DuplicateDetection</td><td><span class='pill PASS'>ENABLED</span></td><td>MEDIUM</td><td><span class='pill FAIL'>2</span></td><td class='muted'>The same transaction hash must not be recorded twice for one shipment.</td></tr>
+<tr><td class='mono'>R5</td><td>SequenceValidation</td><td><span class='pill PASS'>ENABLED</span></td><td>HIGH</td><td><span class='pill FAIL'>1</span></td><td class='muted'>Milestones must occur in the order given on the EventSequence sheet.</td></tr>
+<tr><td class='mono'>R6</td><td>SmartContractEvent</td><td><span class='pill PASS'>ENABLED</span></td><td>HIGH</td><td><span class='pill FAIL'>1</span></td><td class='muted'>Param1 lists the event(s) every completed shipment must emit, matched by function selector.</td></tr>
+</table>
+<h2>Findings (8)</h2>
+<table><tr><th>Shipment</th><th>Milestone</th><th>Status</th><th>Severity</th><th>Reason</th><th>Human decision</th></tr>
+<tr><td class='mono'>SHP-1005</td><td>Dispatched</td><td><span class='pill FAIL'>FAIL</span></td><td>HIGH</td><td>R2 FAIL: on-chain 480 against PO 500 for PO-88005 - shortfall of 20 unit(s)</td><td><span class='muted'>&mdash;</span></td></tr>
+<tr><td class='mono'>SHP-1002</td><td>InTransit</td><td><span class='pill WARNING'>WARNING</span></td><td>NONE</td><td>R1 WARNING: chain 2026-09-02 08:30 vs ERP 2026-09-02 06:00, drift 2.50h (over 2.0h tolerance)</td><td><span class='muted'>&mdash;</span></td></tr>
+<tr><td class='mono'>SHP-1003</td><td>InTransit</td><td><span class='pill FAIL'>FAIL</span></td><td>HIGH</td><td>R1 FAIL: chain 2026-09-02 17:20 vs ERP 2026-09-02 12:00, drift 5.33h (over 4.0h limit)</td><td><span class='muted'>&mdash;</span></td></tr>
+<tr><td class='mono'>SHP-1011</td><td>InTransit</td><td><span class='pill FAIL'>FAIL</span></td><td>HIGH</td><td>R5 FAIL: InTransit (step 2) recorded 2026-09-04 12:00, after Delivered (step 3) at 2026-09-04 08:00</td><td><span class='muted'>&mdash;</span></td></tr>
+<tr><td class='mono'>SHP-1007</td><td>Delivered</td><td><span class='pill FAIL'>FAIL</span></td><td>CRITICAL</td><td>R3 FAIL: 0xeb13863f17d9a7e614210bdb97fc1385aecb08a3 is not an approved partner wallet (expected LastMile Logistics India)</td><td>REJECTED - hold the shipment and open an investigation<br><span class='muted' style='font-size:11.5px'>SIMULATED (adith)</span></td></tr>
+<tr><td class='mono'>SHP-1009</td><td>Delivered</td><td><span class='pill FAIL'>FAIL</span></td><td>MEDIUM</td><td>R4 FAIL: transaction 0xcbe068de25... recorded 2 times for SHP-1009 - replayed or double-submitted</td><td><span class='muted'>&mdash;</span></td></tr>
+<tr><td class='mono'>SHP-1009</td><td>Delivered</td><td><span class='pill FAIL'>FAIL</span></td><td>MEDIUM</td><td>R4 FAIL: transaction 0xcbe068de25... recorded 2 times for SHP-1009 - replayed or double-submitted</td><td><span class='muted'>&mdash;</span></td></tr>
+<tr><td class='mono'>SHP-1012</td><td>Delivered</td><td><span class='pill FAIL'>FAIL</span></td><td>HIGH</td><td>R6 FAIL: SHP-1012 never emitted GoodsReceived - chain of custody incomplete after Delivered</td><td><span class='muted'>&mdash;</span></td></tr>
+</table>
+<h2>Run history (7 run(s) in the audit trail)</h2>
+<table><tr><th>Run</th><th>Started (UTC)</th><th>Validated</th><th>Passed</th><th>Warnings</th><th>Failed</th></tr>
+<tr><td class='mono' style='font-size:11.5px'><b>20260911T055324Z-BLV-BOT-01</b> <span class='pill PASS'>this run</span></td><td class='mono'>2026-09-11 05:53:35</td><td>48</td><td>40</td><td>1</td><td>7</td></tr>
+<tr><td class='mono' style='font-size:11.5px'>20260911T054510Z-BLV-BOT-01</td><td class='mono'>2026-09-11 05:45:20</td><td>48</td><td>40</td><td>1</td><td>7</td></tr>
+<tr><td class='mono' style='font-size:11.5px'>20260911T054220Z-BLV-BOT-01</td><td class='mono'>2026-09-11 05:42:31</td><td>48</td><td>40</td><td>1</td><td>7</td></tr>
+<tr><td class='mono' style='font-size:11.5px'>20260911T054112Z-BLV-BOT-01</td><td class='mono'>2026-09-11 05:41:23</td><td>48</td><td>40</td><td>1</td><td>7</td></tr>
+<tr><td class='mono' style='font-size:11.5px'>20260911T054035Z-BLV-BOT-01</td><td class='mono'>2026-09-11 05:40:46</td><td>48</td><td>40</td><td>1</td><td>7</td></tr>
+<tr><td class='mono' style='font-size:11.5px'>20260911T053959Z-BLV-BOT-01</td><td class='mono'>2026-09-11 05:40:09</td><td>48</td><td>42</td><td>1</td><td>5</td></tr>
+<tr><td class='mono' style='font-size:11.5px'>20260911T053918Z-BLV-BOT-01</td><td class='mono'>2026-09-11 05:39:29</td><td>48</td><td>40</td><td>1</td><td>7</td></tr>
+</table>
+<footer>Generated by the BlockchainLogisticsValidator bot &middot; every figure above comes from this run's own outputs</footer>
+</div></body></html>

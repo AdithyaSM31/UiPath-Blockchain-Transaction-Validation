@@ -1,0 +1,86 @@
+<Activity mc:Ignorable="sap sap2010" x:Class="_12_Verify_AuditChain" mva:VisualBasic.Settings="{x:Null}"
+ xmlns="http://schemas.microsoft.com/netfx/2009/xaml/activities"
+ xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+ xmlns:mva="clr-namespace:Microsoft.VisualBasic.Activities;assembly=System.Activities"
+ xmlns:njl="clr-namespace:Newtonsoft.Json.Linq;assembly=Newtonsoft.Json"
+ xmlns:s="clr-namespace:System;assembly=System.Private.CoreLib"
+ xmlns:sap="http://schemas.microsoft.com/netfx/2009/xaml/activities/presentation"
+ xmlns:sap2010="http://schemas.microsoft.com/netfx/2010/xaml/activities/presentation"
+ xmlns:scg="clr-namespace:System.Collections.Generic;assembly=System.Private.CoreLib"
+ xmlns:sco="clr-namespace:System.Collections.ObjectModel;assembly=mscorlib"
+ xmlns:sd="clr-namespace:System.Data;assembly=System.Data.Common"
+ xmlns:ui="http://schemas.uipath.com/workflow/activities"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <x:Members>
+    <x:Property Name="in_AuditPath" Type="InArgument(x:String)" />
+    <x:Property Name="out_IsValid" Type="OutArgument(x:Boolean)" />
+    <x:Property Name="out_FirstBadRow" Type="OutArgument(x:Int32)" />
+    <x:Property Name="out_Report" Type="OutArgument(x:String)" />
+  </x:Members>
+
+  <TextExpression.NamespacesForImplementation>
+    <sco:Collection x:TypeArguments="x:String">
+      <x:String>System.Activities</x:String>
+      <x:String>System.Activities.Statements</x:String>
+      <x:String>System.Activities.Expressions</x:String>
+      <x:String>System.Activities.Validation</x:String>
+      <x:String>System.Activities.XamlIntegration</x:String>
+      <x:String>Microsoft.VisualBasic</x:String>
+      <x:String>Microsoft.VisualBasic.Activities</x:String>
+      <x:String>System</x:String>
+      <x:String>System.Collections</x:String>
+      <x:String>System.Collections.Generic</x:String>
+      <x:String>System.Collections.ObjectModel</x:String>
+      <x:String>System.Data</x:String>
+      <x:String>System.Diagnostics</x:String>
+      <x:String>System.Drawing</x:String>
+      <x:String>System.Globalization</x:String>
+      <x:String>System.IO</x:String>
+      <x:String>System.Linq</x:String>
+      <x:String>System.Net.Mail</x:String>
+      <x:String>System.Security.Cryptography</x:String>
+      <x:String>System.Text</x:String>
+      <x:String>System.Xml</x:String>
+      <x:String>System.Xml.Linq</x:String>
+      <x:String>Newtonsoft.Json</x:String>
+      <x:String>Newtonsoft.Json.Linq</x:String>
+      <x:String>UiPath.Core</x:String>
+      <x:String>UiPath.Core.Activities</x:String>
+      <x:String>System.Windows.Markup</x:String>
+    </sco:Collection>
+  </TextExpression.NamespacesForImplementation>
+  <TextExpression.ReferencesForImplementation>
+    <sco:Collection x:TypeArguments="AssemblyReference">
+      <AssemblyReference>System.Activities</AssemblyReference>
+      <AssemblyReference>Microsoft.VisualBasic</AssemblyReference>
+      <AssemblyReference>System.Private.CoreLib</AssemblyReference>
+      <AssemblyReference>mscorlib</AssemblyReference>
+      <AssemblyReference>System.Data</AssemblyReference>
+      <AssemblyReference>System</AssemblyReference>
+      <AssemblyReference>System.Linq</AssemblyReference>
+      <AssemblyReference>System.Data.Common</AssemblyReference>
+      <AssemblyReference>System.Drawing</AssemblyReference>
+      <AssemblyReference>System.Drawing.Primitives</AssemblyReference>
+      <AssemblyReference>System.Drawing.Common</AssemblyReference>
+      <AssemblyReference>System.Core</AssemblyReference>
+      <AssemblyReference>System.Runtime</AssemblyReference>
+      <AssemblyReference>System.Security.Cryptography</AssemblyReference>
+      <AssemblyReference>System.Xml</AssemblyReference>
+      <AssemblyReference>System.Xml.Linq</AssemblyReference>
+      <AssemblyReference>PresentationFramework</AssemblyReference>
+      <AssemblyReference>WindowsBase</AssemblyReference>
+      <AssemblyReference>PresentationCore</AssemblyReference>
+      <AssemblyReference>System.Xaml</AssemblyReference>
+      <AssemblyReference>Newtonsoft.Json</AssemblyReference>
+      <AssemblyReference>UiPath.System.Activities</AssemblyReference>
+      <AssemblyReference>UiPath.UiAutomation.Activities</AssemblyReference>
+      <AssemblyReference>UiPath.Excel.Activities</AssemblyReference>
+      <AssemblyReference>UiPath.Excel</AssemblyReference>
+      <AssemblyReference>UiPath.Mail.Activities</AssemblyReference>
+      <AssemblyReference>UiPath.Web.Activities</AssemblyReference>
+      <AssemblyReference>System.Data.DataSetExtensions</AssemblyReference>
+      <AssemblyReference>System.Net.Mail</AssemblyReference>
+    </sco:Collection>
+  </TextExpression.ReferencesForImplementation>
+  <Sequence DisplayName="12 - Verify audit chain integrity"><Sequence.Variables><Variable x:TypeArguments="x:String" Name="projectRoot" /><Variable x:TypeArguments="x:String" Name="configPath" /><Variable x:TypeArguments="x:String" Name="auditPath" /><Variable x:TypeArguments="scg:Dictionary(x:String, x:Object)" Name="Config" /></Sequence.Variables><If DisplayName="If - no audit path supplied" Condition="[String.IsNullOrWhiteSpace(in_AuditPath)]"><If.Then><Sequence DisplayName="Resolve the audit log from configuration"><Assign DisplayName="Assign - projectRoot"><Assign.To><OutArgument x:TypeArguments="x:String">[projectRoot]</OutArgument></Assign.To><Assign.Value><InArgument x:TypeArguments="x:String">[Directory.GetCurrentDirectory()]</InArgument></Assign.Value></Assign><Assign DisplayName="Assign - configPath"><Assign.To><OutArgument x:TypeArguments="x:String">[configPath]</OutArgument></Assign.To><Assign.Value><InArgument x:TypeArguments="x:String">[Path.Combine(projectRoot, &quot;Data&quot;, &quot;Config.xlsx&quot;)]</InArgument></Assign.Value></Assign><ui:InvokeWorkflowFile DisplayName="Invoke 00 - read configuration" WorkflowFileName="Workflows\00_Init_ReadConfig.xaml"><ui:InvokeWorkflowFile.Arguments><scg:Dictionary x:TypeArguments="x:String, Argument"><InArgument x:TypeArguments="x:String" x:Key="in_ConfigPath">[configPath]</InArgument><InArgument x:TypeArguments="x:String" x:Key="in_ProjectRoot">[projectRoot]</InArgument><OutArgument x:TypeArguments="scg:Dictionary(x:String, x:Object)" x:Key="out_Config">[Config]</OutArgument></scg:Dictionary></ui:InvokeWorkflowFile.Arguments></ui:InvokeWorkflowFile><Assign DisplayName="Assign - auditPath"><Assign.To><OutArgument x:TypeArguments="x:String">[auditPath]</OutArgument></Assign.To><Assign.Value><InArgument x:TypeArguments="x:String">[Path.Combine(Convert.ToString(Config(&quot;AuditLogFolder&quot;)), Convert.ToString(Config(&quot;AuditLogFile&quot;)))]</InArgument></Assign.Value></Assign></Sequence></If.Then><If.Else><Sequence DisplayName="Use the supplied path"><Assign DisplayName="Assign - auditPath"><Assign.To><OutArgument x:TypeArguments="x:String">[auditPath]</OutArgument></Assign.To><Assign.Value><InArgument x:TypeArguments="x:String">[in_AuditPath]</InArgument></Assign.Value></Assign></Sequence></If.Else></If><ui:LogMessage DisplayName="Log - [VERIFY] Checking" Level="Info" Message="[&quot;[VERIFY] Checking &quot; &amp; auditPath]" /><ui:InvokeCode DisplayName="Invoke Code - recompute and re-walk the hash chain" Language="VBNet" Code="' Independently recompute every hash in the log and re-walk the chain. This is the&#xA;' demonstration that the audit trail is tamper-evident rather than merely tamper-&#xA;' resistant: edit any cell of the CSV and this reports the exact row that broke.&#xA;If Not File.Exists(in_AuditPath) Then&#xA;    out_IsValid = False&#xA;    out_FirstBadRow = 0&#xA;    out_Report = &quot;Audit log not found: &quot; &amp; in_AuditPath&#xA;    Exit Sub&#xA;End If&#xA;&#xA;Dim lines() As String = File.ReadAllLines(in_AuditPath)&#xA;Dim sha As SHA256 = SHA256.Create()&#xA;Dim GENESIS As String = New String(&quot;0&quot;c, 64)&#xA;Dim expectedPrev As String = GENESIS&#xA;Dim expectedSeq As Long = 0&#xA;Dim bad As Integer = 0&#xA;Dim problems As New List(Of String)&#xA;Dim checked As Integer = 0&#xA;&#xA;For i As Integer = 1 To lines.Length - 1&#xA;    Dim line As String = lines(i)&#xA;    If line.Trim() = &quot;&quot; Then Continue For&#xA;    checked += 1&#xA;&#xA;    Dim p() As String = line.Split(&quot;,&quot;c)&#xA;    If p.Length &lt; 18 Then&#xA;        problems.Add(&quot;line &quot; &amp; (i + 1).ToString() &amp; &quot;: malformed (only &quot; &amp; p.Length.ToString() &amp; &quot; fields)&quot;)&#xA;        If bad = 0 Then bad = i + 1&#xA;        Continue For&#xA;    End If&#xA;&#xA;    ' Fields 0..14 are comma-free by construction; field 15 onwards is the quoted&#xA;    ' free-text reason, which is rejoined and unescaped here.&#xA;    Dim seq As String = p(0)&#xA;    Dim stamp As String = p(1)&#xA;    Dim runId As String = p(2)&#xA;    Dim bot As String = p(3)&#xA;    Dim machine As String = p(4)&#xA;    Dim txHash As String = p(5)&#xA;    Dim shipment As String = p(6)&#xA;    Dim evName As String = p(7)&#xA;    Dim chainTs As String = p(8)&#xA;    Dim qty As String = p(9)&#xA;    Dim status As String = p(10)&#xA;    Dim severity As String = p(11)&#xA;    Dim humanDecision As String = p(12)&#xA;    Dim humanBy As String = p(13)&#xA;    Dim recordHash As String = p(14)&#xA;    Dim prevHash As String = p(15)&#xA;    Dim entryHash As String = p(16)&#xA;&#xA;    Dim reasons As String = String.Join(&quot;,&quot;, p, 17, p.Length - 17)&#xA;    If reasons.StartsWith(&quot;&quot;&quot;&quot;) AndAlso reasons.EndsWith(&quot;&quot;&quot;&quot;) AndAlso reasons.Length &gt;= 2 Then&#xA;        reasons = reasons.Substring(1, reasons.Length - 2).Replace(&quot;&quot;&quot;&quot;&quot;&quot;, &quot;&quot;&quot;&quot;)&#xA;    End If&#xA;&#xA;    expectedSeq += 1&#xA;    If Convert.ToInt64(seq) &lt;&gt; expectedSeq Then&#xA;        problems.Add(&quot;line &quot; &amp; (i + 1).ToString() &amp; &quot;: sequence jumped, expected &quot; &amp; expectedSeq.ToString() &amp; &quot; found &quot; &amp; seq)&#xA;        If bad = 0 Then bad = i + 1&#xA;    End If&#xA;&#xA;    Dim recomputedRecord As String = BitConverter.ToString(sha.ComputeHash(Encoding.UTF8.GetBytes( _&#xA;        String.Join(&quot;|&quot;, New String() {runId, txHash, shipment, evName, chainTs, qty, status, severity, reasons, humanDecision, humanBy}) _&#xA;        ))).Replace(&quot;-&quot;, &quot;&quot;).ToLowerInvariant()&#xA;&#xA;    If recomputedRecord &lt;&gt; recordHash Then&#xA;        problems.Add(&quot;line &quot; &amp; (i + 1).ToString() &amp; &quot;: record contents were altered (RecordHash mismatch) - &quot; &amp; shipment &amp; &quot;/&quot; &amp; evName)&#xA;        If bad = 0 Then bad = i + 1&#xA;    End If&#xA;&#xA;    If prevHash &lt;&gt; expectedPrev Then&#xA;        problems.Add(&quot;line &quot; &amp; (i + 1).ToString() &amp; &quot;: broken link, PrevHash does not match the previous entry&quot;)&#xA;        If bad = 0 Then bad = i + 1&#xA;    End If&#xA;&#xA;    Dim recomputedEntry As String = BitConverter.ToString(sha.ComputeHash(Encoding.UTF8.GetBytes( _&#xA;        String.Join(&quot;|&quot;, New String() {seq, stamp, bot, machine, recomputedRecord, prevHash}) _&#xA;        ))).Replace(&quot;-&quot;, &quot;&quot;).ToLowerInvariant()&#xA;&#xA;    If recomputedEntry &lt;&gt; entryHash Then&#xA;        problems.Add(&quot;line &quot; &amp; (i + 1).ToString() &amp; &quot;: EntryHash does not match its own contents&quot;)&#xA;        If bad = 0 Then bad = i + 1&#xA;    End If&#xA;&#xA;    expectedPrev = entryHash&#xA;Next&#xA;&#xA;out_IsValid = (bad = 0)&#xA;out_FirstBadRow = bad&#xA;If bad = 0 Then&#xA;    out_Report = String.Format(&quot;VALID - {0} entries verified, chain intact from genesis to head {1}...&quot;, _&#xA;        checked, expectedPrev.Substring(0, 16))&#xA;Else&#xA;    out_Report = String.Format(&quot;INVALID - first problem at line {0}. {1}&quot;, bad, String.Join(&quot; ; &quot;, problems.Take(5)))&#xA;End If"><ui:InvokeCode.Arguments><scg:Dictionary x:TypeArguments="x:String, Argument"><InArgument x:TypeArguments="x:String" x:Key="in_AuditPath">[auditPath]</InArgument><OutArgument x:TypeArguments="x:Boolean" x:Key="out_IsValid">[out_IsValid]</OutArgument><OutArgument x:TypeArguments="x:Int32" x:Key="out_FirstBadRow">[out_FirstBadRow]</OutArgument><OutArgument x:TypeArguments="x:String" x:Key="out_Report">[out_Report]</OutArgument></scg:Dictionary></ui:InvokeCode.Arguments></ui:InvokeCode><If DisplayName="If - chain intact" Condition="[out_IsValid]"><If.Then><ui:LogMessage DisplayName="Log - [VERIFY]" Level="Info" Message="[&quot;[VERIFY] &quot; &amp; out_Report]" /></If.Then><If.Else><ui:LogMessage DisplayName="Log - [VERIFY]" Level="Error" Message="[&quot;[VERIFY] &quot; &amp; out_Report]" /></If.Else></If></Sequence>
+</Activity>

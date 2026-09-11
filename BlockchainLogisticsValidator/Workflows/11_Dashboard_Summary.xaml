@@ -1,0 +1,88 @@
+<Activity mc:Ignorable="sap sap2010" x:Class="_11_Dashboard_Summary" mva:VisualBasic.Settings="{x:Null}"
+ xmlns="http://schemas.microsoft.com/netfx/2009/xaml/activities"
+ xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+ xmlns:mva="clr-namespace:Microsoft.VisualBasic.Activities;assembly=System.Activities"
+ xmlns:njl="clr-namespace:Newtonsoft.Json.Linq;assembly=Newtonsoft.Json"
+ xmlns:s="clr-namespace:System;assembly=System.Private.CoreLib"
+ xmlns:sap="http://schemas.microsoft.com/netfx/2009/xaml/activities/presentation"
+ xmlns:sap2010="http://schemas.microsoft.com/netfx/2010/xaml/activities/presentation"
+ xmlns:scg="clr-namespace:System.Collections.Generic;assembly=System.Private.CoreLib"
+ xmlns:sco="clr-namespace:System.Collections.ObjectModel;assembly=mscorlib"
+ xmlns:sd="clr-namespace:System.Data;assembly=System.Data.Common"
+ xmlns:ui="http://schemas.uipath.com/workflow/activities"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <x:Members>
+    <x:Property Name="in_Config" Type="InArgument(scg:Dictionary(x:String, x:Object))" />
+    <x:Property Name="in_dtResults" Type="InArgument(sd:DataTable)" />
+    <x:Property Name="in_dtRules" Type="InArgument(sd:DataTable)" />
+    <x:Property Name="in_Stats" Type="InArgument(scg:Dictionary(x:String, x:Object))" />
+    <x:Property Name="in_HeadHash" Type="InArgument(x:String)" />
+    <x:Property Name="out_DashboardPath" Type="OutArgument(x:String)" />
+  </x:Members>
+
+  <TextExpression.NamespacesForImplementation>
+    <sco:Collection x:TypeArguments="x:String">
+      <x:String>System.Activities</x:String>
+      <x:String>System.Activities.Statements</x:String>
+      <x:String>System.Activities.Expressions</x:String>
+      <x:String>System.Activities.Validation</x:String>
+      <x:String>System.Activities.XamlIntegration</x:String>
+      <x:String>Microsoft.VisualBasic</x:String>
+      <x:String>Microsoft.VisualBasic.Activities</x:String>
+      <x:String>System</x:String>
+      <x:String>System.Collections</x:String>
+      <x:String>System.Collections.Generic</x:String>
+      <x:String>System.Collections.ObjectModel</x:String>
+      <x:String>System.Data</x:String>
+      <x:String>System.Diagnostics</x:String>
+      <x:String>System.Drawing</x:String>
+      <x:String>System.Globalization</x:String>
+      <x:String>System.IO</x:String>
+      <x:String>System.Linq</x:String>
+      <x:String>System.Net.Mail</x:String>
+      <x:String>System.Security.Cryptography</x:String>
+      <x:String>System.Text</x:String>
+      <x:String>System.Xml</x:String>
+      <x:String>System.Xml.Linq</x:String>
+      <x:String>Newtonsoft.Json</x:String>
+      <x:String>Newtonsoft.Json.Linq</x:String>
+      <x:String>UiPath.Core</x:String>
+      <x:String>UiPath.Core.Activities</x:String>
+      <x:String>System.Windows.Markup</x:String>
+    </sco:Collection>
+  </TextExpression.NamespacesForImplementation>
+  <TextExpression.ReferencesForImplementation>
+    <sco:Collection x:TypeArguments="AssemblyReference">
+      <AssemblyReference>System.Activities</AssemblyReference>
+      <AssemblyReference>Microsoft.VisualBasic</AssemblyReference>
+      <AssemblyReference>System.Private.CoreLib</AssemblyReference>
+      <AssemblyReference>mscorlib</AssemblyReference>
+      <AssemblyReference>System.Data</AssemblyReference>
+      <AssemblyReference>System</AssemblyReference>
+      <AssemblyReference>System.Linq</AssemblyReference>
+      <AssemblyReference>System.Data.Common</AssemblyReference>
+      <AssemblyReference>System.Drawing</AssemblyReference>
+      <AssemblyReference>System.Drawing.Primitives</AssemblyReference>
+      <AssemblyReference>System.Drawing.Common</AssemblyReference>
+      <AssemblyReference>System.Core</AssemblyReference>
+      <AssemblyReference>System.Runtime</AssemblyReference>
+      <AssemblyReference>System.Security.Cryptography</AssemblyReference>
+      <AssemblyReference>System.Xml</AssemblyReference>
+      <AssemblyReference>System.Xml.Linq</AssemblyReference>
+      <AssemblyReference>PresentationFramework</AssemblyReference>
+      <AssemblyReference>WindowsBase</AssemblyReference>
+      <AssemblyReference>PresentationCore</AssemblyReference>
+      <AssemblyReference>System.Xaml</AssemblyReference>
+      <AssemblyReference>Newtonsoft.Json</AssemblyReference>
+      <AssemblyReference>UiPath.System.Activities</AssemblyReference>
+      <AssemblyReference>UiPath.UiAutomation.Activities</AssemblyReference>
+      <AssemblyReference>UiPath.Excel.Activities</AssemblyReference>
+      <AssemblyReference>UiPath.Excel</AssemblyReference>
+      <AssemblyReference>UiPath.Mail.Activities</AssemblyReference>
+      <AssemblyReference>UiPath.Web.Activities</AssemblyReference>
+      <AssemblyReference>System.Data.DataSetExtensions</AssemblyReference>
+      <AssemblyReference>System.Net.Mail</AssemblyReference>
+    </sco:Collection>
+  </TextExpression.ReferencesForImplementation>
+  <Sequence DisplayName="11 - Emit dashboard summary"><Sequence.Variables><Variable x:TypeArguments="x:String" Name="summary" /></Sequence.Variables><ui:InvokeCode DisplayName="Invoke Code - build dashboard JSON" Language="VBNet" Code="' Emit the run's KPIs as JSON. This is the hand-off point for an external dashboard -&#xA;' Power BI, Google Sheets or anything else - without coupling the bot to one of them.&#xA;Dim o As New JObject()&#xA;o(&quot;runId&quot;) = Convert.ToString(in_Config(&quot;RunId&quot;))&#xA;o(&quot;generatedUtc&quot;) = DateTime.UtcNow.ToString(&quot;o&quot;, CultureInfo.InvariantCulture)&#xA;o(&quot;botIdentity&quot;) = Convert.ToString(in_Config(&quot;BotIdentity&quot;))&#xA;o(&quot;machine&quot;) = Convert.ToString(in_Config(&quot;MachineName&quot;))&#xA;o(&quot;dataSourceMode&quot;) = Convert.ToString(in_Config(&quot;DataSourceMode&quot;))&#xA;o(&quot;chainId&quot;) = Convert.ToString(in_Config(&quot;ChainId&quot;))&#xA;o(&quot;contract&quot;) = Convert.ToString(in_Config(&quot;ContractAddress&quot;))&#xA;o(&quot;total&quot;) = Convert.ToInt32(in_Stats(&quot;Total&quot;))&#xA;o(&quot;pass&quot;) = Convert.ToInt32(in_Stats(&quot;Pass&quot;))&#xA;o(&quot;warning&quot;) = Convert.ToInt32(in_Stats(&quot;Warning&quot;))&#xA;o(&quot;fail&quot;) = Convert.ToInt32(in_Stats(&quot;Fail&quot;))&#xA;o(&quot;escalations&quot;) = Convert.ToInt32(in_Stats(&quot;Escalations&quot;))&#xA;o(&quot;passPercent&quot;) = Convert.ToDouble(in_Stats(&quot;PassPercent&quot;))&#xA;o(&quot;auditChainHead&quot;) = in_HeadHash&#xA;&#xA;Dim rulesArr As New JArray()&#xA;For Each rule As DataRow In in_dtRules.Rows&#xA;    Dim rid As String = Convert.ToString(rule(&quot;RuleID&quot;))&#xA;    Dim ro As New JObject()&#xA;    ro(&quot;ruleId&quot;) = rid&#xA;    ro(&quot;name&quot;) = Convert.ToString(rule(&quot;RuleName&quot;))&#xA;    ro(&quot;enabled&quot;) = (Convert.ToString(rule(&quot;Enabled&quot;)).Trim().ToUpperInvariant() = &quot;TRUE&quot;)&#xA;    ro(&quot;severity&quot;) = Convert.ToString(rule(&quot;Severity&quot;))&#xA;    ro(&quot;findings&quot;) = If(in_Stats.ContainsKey(rid &amp; &quot;_Hits&quot;), Convert.ToInt32(in_Stats(rid &amp; &quot;_Hits&quot;)), 0)&#xA;    rulesArr.Add(ro)&#xA;Next&#xA;o(&quot;rules&quot;) = rulesArr&#xA;&#xA;' Top anomaly types, most frequent first - the &quot;top anomaly types&quot; tile.&#xA;Dim byShipment As New JArray()&#xA;For Each r As DataRow In in_dtResults.Rows&#xA;    If Convert.ToString(r(&quot;ValidationStatus&quot;)) &lt;&gt; &quot;PASS&quot; Then&#xA;        Dim e As New JObject()&#xA;        e(&quot;shipmentId&quot;) = Convert.ToString(r(&quot;ShipmentID&quot;))&#xA;        e(&quot;event&quot;) = Convert.ToString(r(&quot;EventName&quot;))&#xA;        e(&quot;status&quot;) = Convert.ToString(r(&quot;ValidationStatus&quot;))&#xA;        e(&quot;severity&quot;) = Convert.ToString(r(&quot;Severity&quot;))&#xA;        e(&quot;reasons&quot;) = Convert.ToString(r(&quot;FailureReasons&quot;))&#xA;        byShipment.Add(e)&#xA;    End If&#xA;Next&#xA;o(&quot;findings&quot;) = byShipment&#xA;&#xA;Dim outPath As String = Path.Combine(Convert.ToString(in_Config(&quot;ReportsFolder&quot;)), &quot;dashboard_summary.json&quot;)&#xA;File.WriteAllText(outPath, o.ToString(Newtonsoft.Json.Formatting.Indented), Encoding.UTF8)&#xA;&#xA;out_DashboardPath = outPath&#xA;out_Summary = String.Format(&quot;dashboard JSON written with {0} finding(s): {1}&quot;, byShipment.Count, Path.GetFileName(outPath))"><ui:InvokeCode.Arguments><scg:Dictionary x:TypeArguments="x:String, Argument"><InArgument x:TypeArguments="scg:Dictionary(x:String, x:Object)" x:Key="in_Config">[in_Config]</InArgument><InArgument x:TypeArguments="sd:DataTable" x:Key="in_dtResults">[in_dtResults]</InArgument><InArgument x:TypeArguments="sd:DataTable" x:Key="in_dtRules">[in_dtRules]</InArgument><InArgument x:TypeArguments="scg:Dictionary(x:String, x:Object)" x:Key="in_Stats">[in_Stats]</InArgument><InArgument x:TypeArguments="x:String" x:Key="in_HeadHash">[in_HeadHash]</InArgument><OutArgument x:TypeArguments="x:String" x:Key="out_DashboardPath">[out_DashboardPath]</OutArgument><OutArgument x:TypeArguments="x:String" x:Key="out_Summary">[summary]</OutArgument></scg:Dictionary></ui:InvokeCode.Arguments></ui:InvokeCode><ui:LogMessage DisplayName="Log - [DASHBOARD]" Level="Info" Message="[&quot;[DASHBOARD] &quot; &amp; summary]" /></Sequence>
+</Activity>

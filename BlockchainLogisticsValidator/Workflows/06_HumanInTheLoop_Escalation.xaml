@@ -1,0 +1,85 @@
+<Activity mc:Ignorable="sap sap2010" x:Class="_06_HumanInTheLoop_Escalation" mva:VisualBasic.Settings="{x:Null}"
+ xmlns="http://schemas.microsoft.com/netfx/2009/xaml/activities"
+ xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+ xmlns:mva="clr-namespace:Microsoft.VisualBasic.Activities;assembly=System.Activities"
+ xmlns:njl="clr-namespace:Newtonsoft.Json.Linq;assembly=Newtonsoft.Json"
+ xmlns:s="clr-namespace:System;assembly=System.Private.CoreLib"
+ xmlns:sap="http://schemas.microsoft.com/netfx/2009/xaml/activities/presentation"
+ xmlns:sap2010="http://schemas.microsoft.com/netfx/2010/xaml/activities/presentation"
+ xmlns:scg="clr-namespace:System.Collections.Generic;assembly=System.Private.CoreLib"
+ xmlns:sco="clr-namespace:System.Collections.ObjectModel;assembly=mscorlib"
+ xmlns:sd="clr-namespace:System.Data;assembly=System.Data.Common"
+ xmlns:ui="http://schemas.uipath.com/workflow/activities"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <x:Members>
+    <x:Property Name="in_Config" Type="InArgument(scg:Dictionary(x:String, x:Object))" />
+    <x:Property Name="io_dtResults" Type="InOutArgument(sd:DataTable)" />
+    <x:Property Name="out_EscalationCount" Type="OutArgument(x:Int32)" />
+  </x:Members>
+
+  <TextExpression.NamespacesForImplementation>
+    <sco:Collection x:TypeArguments="x:String">
+      <x:String>System.Activities</x:String>
+      <x:String>System.Activities.Statements</x:String>
+      <x:String>System.Activities.Expressions</x:String>
+      <x:String>System.Activities.Validation</x:String>
+      <x:String>System.Activities.XamlIntegration</x:String>
+      <x:String>Microsoft.VisualBasic</x:String>
+      <x:String>Microsoft.VisualBasic.Activities</x:String>
+      <x:String>System</x:String>
+      <x:String>System.Collections</x:String>
+      <x:String>System.Collections.Generic</x:String>
+      <x:String>System.Collections.ObjectModel</x:String>
+      <x:String>System.Data</x:String>
+      <x:String>System.Diagnostics</x:String>
+      <x:String>System.Drawing</x:String>
+      <x:String>System.Globalization</x:String>
+      <x:String>System.IO</x:String>
+      <x:String>System.Linq</x:String>
+      <x:String>System.Net.Mail</x:String>
+      <x:String>System.Security.Cryptography</x:String>
+      <x:String>System.Text</x:String>
+      <x:String>System.Xml</x:String>
+      <x:String>System.Xml.Linq</x:String>
+      <x:String>Newtonsoft.Json</x:String>
+      <x:String>Newtonsoft.Json.Linq</x:String>
+      <x:String>UiPath.Core</x:String>
+      <x:String>UiPath.Core.Activities</x:String>
+      <x:String>System.Windows.Markup</x:String>
+    </sco:Collection>
+  </TextExpression.NamespacesForImplementation>
+  <TextExpression.ReferencesForImplementation>
+    <sco:Collection x:TypeArguments="AssemblyReference">
+      <AssemblyReference>System.Activities</AssemblyReference>
+      <AssemblyReference>Microsoft.VisualBasic</AssemblyReference>
+      <AssemblyReference>System.Private.CoreLib</AssemblyReference>
+      <AssemblyReference>mscorlib</AssemblyReference>
+      <AssemblyReference>System.Data</AssemblyReference>
+      <AssemblyReference>System</AssemblyReference>
+      <AssemblyReference>System.Linq</AssemblyReference>
+      <AssemblyReference>System.Data.Common</AssemblyReference>
+      <AssemblyReference>System.Drawing</AssemblyReference>
+      <AssemblyReference>System.Drawing.Primitives</AssemblyReference>
+      <AssemblyReference>System.Drawing.Common</AssemblyReference>
+      <AssemblyReference>System.Core</AssemblyReference>
+      <AssemblyReference>System.Runtime</AssemblyReference>
+      <AssemblyReference>System.Security.Cryptography</AssemblyReference>
+      <AssemblyReference>System.Xml</AssemblyReference>
+      <AssemblyReference>System.Xml.Linq</AssemblyReference>
+      <AssemblyReference>PresentationFramework</AssemblyReference>
+      <AssemblyReference>WindowsBase</AssemblyReference>
+      <AssemblyReference>PresentationCore</AssemblyReference>
+      <AssemblyReference>System.Xaml</AssemblyReference>
+      <AssemblyReference>Newtonsoft.Json</AssemblyReference>
+      <AssemblyReference>UiPath.System.Activities</AssemblyReference>
+      <AssemblyReference>UiPath.UiAutomation.Activities</AssemblyReference>
+      <AssemblyReference>UiPath.Excel.Activities</AssemblyReference>
+      <AssemblyReference>UiPath.Excel</AssemblyReference>
+      <AssemblyReference>UiPath.Mail.Activities</AssemblyReference>
+      <AssemblyReference>UiPath.Web.Activities</AssemblyReference>
+      <AssemblyReference>System.Data.DataSetExtensions</AssemblyReference>
+      <AssemblyReference>System.Net.Mail</AssemblyReference>
+    </sco:Collection>
+  </TextExpression.ReferencesForImplementation>
+  <Sequence DisplayName="06 - Human-in-the-loop escalation"><Sequence.Variables><Variable x:TypeArguments="x:Int32" Name="escalationCount" /><Variable x:TypeArguments="x:String" Name="summary" /><Variable x:TypeArguments="x:String" Name="mode" /><Variable x:TypeArguments="x:String" Name="decision" /></Sequence.Variables><ui:InvokeCode DisplayName="Invoke Code - count escalations" Language="VBNet" Code="Dim n As Integer = 0&#xA;Dim detail As New List(Of String)&#xA;For Each r As DataRow In io_dtResults.Rows&#xA;    If Convert.ToBoolean(r(&quot;RequiresEscalation&quot;)) Then&#xA;        n += 1&#xA;        detail.Add(Convert.ToString(r(&quot;ShipmentID&quot;)) &amp; &quot;/&quot; &amp; Convert.ToString(r(&quot;EventName&quot;)))&#xA;    End If&#xA;Next&#xA;out_Count = n&#xA;out_Summary = If(n = 0, &quot;no anomalies met the escalation threshold&quot;, _&#xA;                 n.ToString() &amp; &quot; anomaly(ies) require human review: &quot; &amp; String.Join(&quot;, &quot;, detail))"><ui:InvokeCode.Arguments><scg:Dictionary x:TypeArguments="x:String, Argument"><InOutArgument x:TypeArguments="sd:DataTable" x:Key="io_dtResults">[io_dtResults]</InOutArgument><OutArgument x:TypeArguments="x:Int32" x:Key="out_Count">[escalationCount]</OutArgument><OutArgument x:TypeArguments="x:String" x:Key="out_Summary">[summary]</OutArgument></scg:Dictionary></ui:InvokeCode.Arguments></ui:InvokeCode><ui:LogMessage DisplayName="Log - [ESCALATE]" Level="Info" Message="[&quot;[ESCALATE] &quot; &amp; summary]" /><Assign DisplayName="Assign - effective escalation mode"><Assign.To><OutArgument x:TypeArguments="x:String">[mode]</OutArgument></Assign.To><Assign.Value><InArgument x:TypeArguments="x:String">[If(Convert.ToString(in_Config(&quot;EscalationEnabled&quot;)).Trim().ToUpperInvariant() &lt;&gt; &quot;TRUE&quot;, &quot;AUTO_LOG&quot;, If(Convert.ToString(in_Config(&quot;AttendedMode&quot;)).Trim().ToUpperInvariant() &lt;&gt; &quot;TRUE&quot; AndAlso Convert.ToString(in_Config(&quot;EscalationMode&quot;)).Trim().ToUpperInvariant() = &quot;PROMPT&quot;, &quot;AUTO_LOG&quot;, Convert.ToString(in_Config(&quot;EscalationMode&quot;)).Trim().ToUpperInvariant()))]</InArgument></Assign.Value></Assign><If DisplayName="If - anything to escalate" Condition="[escalationCount &gt; 0]"><If.Then><Sequence DisplayName="Handle escalations"><ui:LogMessage DisplayName="Log - [ESCALATE] Effective mode" Level="Info" Message="[&quot;[ESCALATE] Effective mode: &quot; &amp; mode]" /><If DisplayName="If - interactive review available" Condition="[mode = &quot;PROMPT&quot;]"><If.Then><Sequence DisplayName="Interactive review"><ui:LogMessage DisplayName="Log - [ESCALATE] Pausing for human review" Level="Warn" Message="[&quot;[ESCALATE] Pausing for human review - &quot; &amp; escalationCount.ToString() &amp; &quot; item(s).&quot;]" /><ui:ForEachRow DisplayName="For Each Row - transactions awaiting review" DataTable="[io_dtResults]"><ui:ForEachRow.Body><ActivityAction x:TypeArguments="sd:DataRow"><ActivityAction.Argument><DelegateInArgument x:TypeArguments="sd:DataRow" Name="CurrentRow" /></ActivityAction.Argument><Sequence DisplayName="Ask the reviewer"><If DisplayName="If - this row needs review" Condition="[Convert.ToBoolean(CurrentRow(&quot;RequiresEscalation&quot;))]"><If.Then><Sequence DisplayName="Escalate this transaction"><ui:InputDialog DisplayName="Input Dialog - anomaly review" Title="[&quot;Blockchain anomaly requires review&quot;]" Label="[&quot;A blockchain transaction failed a CRITICAL validation rule and needs your decision.&quot; &amp; vbCrLf &amp; vbCrLf &amp; &quot;Shipment:  &quot; &amp; Convert.ToString(CurrentRow(&quot;ShipmentID&quot;)) &amp; &quot;  (&quot; &amp; Convert.ToString(CurrentRow(&quot;Product&quot;)) &amp; &quot;)&quot; &amp; vbCrLf &amp; &quot;Milestone: &quot; &amp; Convert.ToString(CurrentRow(&quot;EventName&quot;)) &amp; vbCrLf &amp; &quot;Recorded:  &quot; &amp; Convert.ToDateTime(CurrentRow(&quot;ChainTimestampUtc&quot;)).ToString(&quot;yyyy-MM-dd HH:mm&quot;) &amp; &quot; UTC&quot; &amp; vbCrLf &amp; &quot;Signed by: &quot; &amp; Convert.ToString(CurrentRow(&quot;SenderAddress&quot;)) &amp; vbCrLf &amp; &quot;Severity:  &quot; &amp; Convert.ToString(CurrentRow(&quot;Severity&quot;)) &amp; vbCrLf &amp; vbCrLf &amp; &quot;Finding:&quot; &amp; vbCrLf &amp; Convert.ToString(CurrentRow(&quot;FailureReasons&quot;))]" Options="[New String() {&quot;APPROVED - verified with the partner out of band&quot;, &quot;REJECTED - hold the shipment and open an investigation&quot;, &quot;ESCALATED - refer to the compliance team&quot;, &quot;DEFERRED - decide at the next review&quot;}]" ><ui:InputDialog.Result><OutArgument x:TypeArguments="x:String">[decision]</OutArgument></ui:InputDialog.Result></ui:InputDialog><Assign DisplayName="Assign - record decision"><Assign.To><OutArgument x:TypeArguments="x:Object">[CurrentRow(&quot;HumanDecision&quot;)]</OutArgument></Assign.To><Assign.Value><InArgument x:TypeArguments="x:Object">[decision]</InArgument></Assign.Value></Assign><Assign DisplayName="Assign - record reviewer"><Assign.To><OutArgument x:TypeArguments="x:Object">[CurrentRow(&quot;HumanDecidedBy&quot;)]</OutArgument></Assign.To><Assign.Value><InArgument x:TypeArguments="x:Object">[Environment.UserName]</InArgument></Assign.Value></Assign><Assign DisplayName="Assign - record decision time"><Assign.To><OutArgument x:TypeArguments="x:Object">[CurrentRow(&quot;HumanDecidedAtUtc&quot;)]</OutArgument></Assign.To><Assign.Value><InArgument x:TypeArguments="x:Object">[DateTime.UtcNow.ToString(&quot;o&quot;, CultureInfo.InvariantCulture)]</InArgument></Assign.Value></Assign><ui:LogMessage DisplayName="Log - [ESCALATE]" Level="Info" Message="[&quot;[ESCALATE] &quot; &amp; Convert.ToString(CurrentRow(&quot;ShipmentID&quot;)) &amp; &quot; -&gt; &quot; &amp; decision &amp; &quot; (by &quot; &amp; Environment.UserName &amp; &quot;)&quot;]" /></Sequence></If.Then></If></Sequence></ActivityAction></ui:ForEachRow.Body></ui:ForEachRow></Sequence></If.Then><If.Else><Sequence DisplayName="Disposition without a reviewer"><ui:InvokeCode DisplayName="Invoke Code - apply non-interactive decision" Language="VBNet" Code="' Non-interactive dispositions. SIMULATE applies the decision configured in&#xA;' Config.xlsx so a rehearsal produces the same artefacts as a real review;&#xA;' AUTO_LOG defers, which is what an unattended run must do.&#xA;Dim decision As String&#xA;Dim decidedBy As String&#xA;If in_Mode = &quot;SIMULATE&quot; Then&#xA;    decision = in_SimulatedDecision&#xA;    If String.IsNullOrWhiteSpace(decision) Then decision = &quot;APPROVED - simulated&quot;&#xA;    decidedBy = &quot;SIMULATED (&quot; &amp; Environment.UserName &amp; &quot;)&quot;&#xA;Else&#xA;    decision = &quot;DEFERRED - unattended run, no reviewer present&quot;&#xA;    decidedBy = &quot;UNATTENDED&quot;&#xA;End If&#xA;&#xA;Dim n As Integer = 0&#xA;For Each r As DataRow In io_dtResults.Rows&#xA;    If Convert.ToBoolean(r(&quot;RequiresEscalation&quot;)) Then&#xA;        r(&quot;HumanDecision&quot;) = decision&#xA;        r(&quot;HumanDecidedBy&quot;) = decidedBy&#xA;        r(&quot;HumanDecidedAtUtc&quot;) = DateTime.UtcNow.ToString(&quot;o&quot;, CultureInfo.InvariantCulture)&#xA;        n += 1&#xA;    End If&#xA;Next&#xA;&#xA;out_Summary = String.Format(&quot;{0} escalation(s) dispositioned as &quot;&quot;{1}&quot;&quot; via {2}&quot;, n, decision, in_Mode)"><ui:InvokeCode.Arguments><scg:Dictionary x:TypeArguments="x:String, Argument"><InOutArgument x:TypeArguments="sd:DataTable" x:Key="io_dtResults">[io_dtResults]</InOutArgument><InArgument x:TypeArguments="x:String" x:Key="in_Mode">[mode]</InArgument><InArgument x:TypeArguments="x:String" x:Key="in_SimulatedDecision">[Convert.ToString(in_Config(&quot;SimulatedEscalationDecision&quot;))]</InArgument><OutArgument x:TypeArguments="x:String" x:Key="out_Summary">[summary]</OutArgument></scg:Dictionary></ui:InvokeCode.Arguments></ui:InvokeCode><ui:LogMessage DisplayName="Log - [ESCALATE]" Level="Info" Message="[&quot;[ESCALATE] &quot; &amp; summary]" /></Sequence></If.Else></If></Sequence></If.Then><If.Else><Sequence DisplayName="Nothing to escalate"><ui:LogMessage DisplayName="Log - [ESCALATE] No human review required for this r" Level="Info" Message="[&quot;[ESCALATE] No human review required for this run.&quot;]" /></Sequence></If.Else></If></Sequence>
+</Activity>

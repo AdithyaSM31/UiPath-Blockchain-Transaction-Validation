@@ -1,0 +1,15 @@
+# Machine-specific config override: output paths, API keys. Never commit.
+BlockchainLogisticsValidator/Data/Config.local.json
+
+# Generated at run time
+BlockchainLogisticsValidator/Data/Output/
+BlockchainLogisticsValidator/.local/
+BlockchainLogisticsValidator/.settings/
+BlockchainLogisticsValidator/.objects/
+BlockchainLogisticsValidator/.tmh/
+BlockchainLogisticsValidator/.project.json.bak
+
+# Build artefacts
+*.nupkg
+__pycache__/
+*.pyc

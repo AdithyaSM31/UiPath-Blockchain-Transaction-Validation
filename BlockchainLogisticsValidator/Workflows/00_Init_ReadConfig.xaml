@@ -1,0 +1,90 @@
+<Activity mc:Ignorable="sap sap2010" x:Class="_00_Init_ReadConfig" mva:VisualBasic.Settings="{x:Null}"
+ xmlns="http://schemas.microsoft.com/netfx/2009/xaml/activities"
+ xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+ xmlns:mva="clr-namespace:Microsoft.VisualBasic.Activities;assembly=System.Activities"
+ xmlns:njl="clr-namespace:Newtonsoft.Json.Linq;assembly=Newtonsoft.Json"
+ xmlns:s="clr-namespace:System;assembly=System.Private.CoreLib"
+ xmlns:sap="http://schemas.microsoft.com/netfx/2009/xaml/activities/presentation"
+ xmlns:sap2010="http://schemas.microsoft.com/netfx/2010/xaml/activities/presentation"
+ xmlns:scg="clr-namespace:System.Collections.Generic;assembly=System.Private.CoreLib"
+ xmlns:sco="clr-namespace:System.Collections.ObjectModel;assembly=mscorlib"
+ xmlns:sd="clr-namespace:System.Data;assembly=System.Data.Common"
+ xmlns:ui="http://schemas.uipath.com/workflow/activities"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <x:Members>
+    <x:Property Name="in_ConfigPath" Type="InArgument(x:String)" />
+    <x:Property Name="in_ProjectRoot" Type="InArgument(x:String)" />
+    <x:Property Name="out_Config" Type="OutArgument(scg:Dictionary(x:String, x:Object))" />
+    <x:Property Name="out_dtRules" Type="OutArgument(sd:DataTable)" />
+    <x:Property Name="out_dtWallets" Type="OutArgument(sd:DataTable)" />
+    <x:Property Name="out_dtMapping" Type="OutArgument(sd:DataTable)" />
+    <x:Property Name="out_dtSequence" Type="OutArgument(sd:DataTable)" />
+    <x:Property Name="out_dtSignatures" Type="OutArgument(sd:DataTable)" />
+  </x:Members>
+
+  <TextExpression.NamespacesForImplementation>
+    <sco:Collection x:TypeArguments="x:String">
+      <x:String>System.Activities</x:String>
+      <x:String>System.Activities.Statements</x:String>
+      <x:String>System.Activities.Expressions</x:String>
+      <x:String>System.Activities.Validation</x:String>
+      <x:String>System.Activities.XamlIntegration</x:String>
+      <x:String>Microsoft.VisualBasic</x:String>
+      <x:String>Microsoft.VisualBasic.Activities</x:String>
+      <x:String>System</x:String>
+      <x:String>System.Collections</x:String>
+      <x:String>System.Collections.Generic</x:String>
+      <x:String>System.Collections.ObjectModel</x:String>
+      <x:String>System.Data</x:String>
+      <x:String>System.Diagnostics</x:String>
+      <x:String>System.Drawing</x:String>
+      <x:String>System.Globalization</x:String>
+      <x:String>System.IO</x:String>
+      <x:String>System.Linq</x:String>
+      <x:String>System.Net.Mail</x:String>
+      <x:String>System.Security.Cryptography</x:String>
+      <x:String>System.Text</x:String>
+      <x:String>System.Xml</x:String>
+      <x:String>System.Xml.Linq</x:String>
+      <x:String>Newtonsoft.Json</x:String>
+      <x:String>Newtonsoft.Json.Linq</x:String>
+      <x:String>UiPath.Core</x:String>
+      <x:String>UiPath.Core.Activities</x:String>
+      <x:String>System.Windows.Markup</x:String>
+    </sco:Collection>
+  </TextExpression.NamespacesForImplementation>
+  <TextExpression.ReferencesForImplementation>
+    <sco:Collection x:TypeArguments="AssemblyReference">
+      <AssemblyReference>System.Activities</AssemblyReference>
+      <AssemblyReference>Microsoft.VisualBasic</AssemblyReference>
+      <AssemblyReference>System.Private.CoreLib</AssemblyReference>
+      <AssemblyReference>mscorlib</AssemblyReference>
+      <AssemblyReference>System.Data</AssemblyReference>
+      <AssemblyReference>System</AssemblyReference>
+      <AssemblyReference>System.Linq</AssemblyReference>
+      <AssemblyReference>System.Data.Common</AssemblyReference>
+      <AssemblyReference>System.Drawing</AssemblyReference>
+      <AssemblyReference>System.Drawing.Primitives</AssemblyReference>
+      <AssemblyReference>System.Drawing.Common</AssemblyReference>
+      <AssemblyReference>System.Core</AssemblyReference>
+      <AssemblyReference>System.Runtime</AssemblyReference>
+      <AssemblyReference>System.Security.Cryptography</AssemblyReference>
+      <AssemblyReference>System.Xml</AssemblyReference>
+      <AssemblyReference>System.Xml.Linq</AssemblyReference>
+      <AssemblyReference>PresentationFramework</AssemblyReference>
+      <AssemblyReference>WindowsBase</AssemblyReference>
+      <AssemblyReference>PresentationCore</AssemblyReference>
+      <AssemblyReference>System.Xaml</AssemblyReference>
+      <AssemblyReference>Newtonsoft.Json</AssemblyReference>
+      <AssemblyReference>UiPath.System.Activities</AssemblyReference>
+      <AssemblyReference>UiPath.UiAutomation.Activities</AssemblyReference>
+      <AssemblyReference>UiPath.Excel.Activities</AssemblyReference>
+      <AssemblyReference>UiPath.Excel</AssemblyReference>
+      <AssemblyReference>UiPath.Mail.Activities</AssemblyReference>
+      <AssemblyReference>UiPath.Web.Activities</AssemblyReference>
+      <AssemblyReference>System.Data.DataSetExtensions</AssemblyReference>
+      <AssemblyReference>System.Net.Mail</AssemblyReference>
+    </sco:Collection>
+  </TextExpression.ReferencesForImplementation>
+  <Sequence DisplayName="00 - Initialise and read configuration"><Sequence.Variables><Variable x:TypeArguments="sd:DataTable" Name="dtSettings" /><Variable x:TypeArguments="x:String" Name="summary" /></Sequence.Variables><ui:LogMessage DisplayName="Log - [INIT] Reading configuration from" Level="Info" Message="[&quot;[INIT] Reading configuration from &quot; &amp; in_ConfigPath]" /><ui:ExcelApplicationScope DisplayName="Excel Application Scope - Config.xlsx" AutoSave="False" Visible="False" CreateNewFile="False" ReadOnly="True" WorkbookPath="[in_ConfigPath]"><ui:ExcelApplicationScope.Body><ActivityAction x:TypeArguments="ui:WorkbookApplication"><ActivityAction.Argument><DelegateInArgument x:TypeArguments="ui:WorkbookApplication" Name="ExcelWorkbookScope" /></ActivityAction.Argument><Sequence DisplayName="Read configuration sheets"><ui:ExcelReadRange DisplayName="Read Range - Settings" AddHeaders="True" DataTable="[dtSettings]" Range="" SheetName="Settings" /><ui:ExcelReadRange DisplayName="Read Range - ValidationRules" AddHeaders="True" DataTable="[out_dtRules]" Range="" SheetName="ValidationRules" /><ui:ExcelReadRange DisplayName="Read Range - ApprovedWallets" AddHeaders="True" DataTable="[out_dtWallets]" Range="" SheetName="ApprovedWallets" /><ui:ExcelReadRange DisplayName="Read Range - FieldMapping" AddHeaders="True" DataTable="[out_dtMapping]" Range="" SheetName="FieldMapping" /><ui:ExcelReadRange DisplayName="Read Range - EventSequence" AddHeaders="True" DataTable="[out_dtSequence]" Range="" SheetName="EventSequence" /><ui:ExcelReadRange DisplayName="Read Range - EventSignatures" AddHeaders="True" DataTable="[out_dtSignatures]" Range="" SheetName="EventSignatures" /></Sequence></ActivityAction></ui:ExcelApplicationScope.Body></ui:ExcelApplicationScope><ui:InvokeCode DisplayName="Invoke Code - build config dictionary and validate" Language="VBNet" Code="' ---- Flatten the Settings sheet into a case-insensitive dictionary -------&#xA;Dim d As New Dictionary(Of String, Object)(StringComparer.OrdinalIgnoreCase)&#xA;For Each r As DataRow In in_dtSettings.Rows&#xA;    Dim k As String = Convert.ToString(r(&quot;Name&quot;)).Trim()&#xA;    If k &lt;&gt; &quot;&quot; Then&#xA;        d(k) = r(&quot;Value&quot;)&#xA;    End If&#xA;Next&#xA;&#xA;' ---- Local, uncommitted overrides ---------------------------------------&#xA;' Data\Config.local.json (if present) overrides any Settings value. This is where a&#xA;' machine-specific output path or a real API key belongs, so Config.xlsx stays&#xA;' portable and safe to hand in.&#xA;Dim localCfg As String = Path.Combine(in_ProjectRoot, &quot;Data&quot;, &quot;Config.local.json&quot;)&#xA;If File.Exists(localCfg) Then&#xA;    Dim ov As JObject = JObject.Parse(File.ReadAllText(localCfg))&#xA;    For Each prop As JProperty In ov.Properties()&#xA;        d(prop.Name) = prop.Value.ToString()&#xA;    Next&#xA;End If&#xA;&#xA;' ---- Resolve relative paths against the project root --------------------&#xA;' Paths are stored relative in Config.xlsx so the project stays portable; at&#xA;' runtime the working directory is the deployed package's content folder.&#xA;Dim pathKeys() As String = {&quot;MockChainFile&quot;, &quot;LogisticsFile&quot;, &quot;TxShipmentMapFile&quot;}&#xA;For Each key As String In pathKeys&#xA;    If d.ContainsKey(key) Then&#xA;        Dim v As String = Convert.ToString(d(key)).Trim()&#xA;        If v &lt;&gt; &quot;&quot; AndAlso Not Path.IsPathRooted(v) Then&#xA;            d(key) = Path.GetFullPath(Path.Combine(in_ProjectRoot, v))&#xA;        End If&#xA;    End If&#xA;Next&#xA;&#xA;' ---- Where outputs go ----------------------------------------------------&#xA;' Studio runs with the project folder as the working directory, so the default puts&#xA;' reports in Data\Output as expected. A published package is extracted to a fresh,&#xA;' version-named folder under .nuget on every run, so relying on that default in a&#xA;' deployed run would scatter reports where nobody finds them - and the audit chain&#xA;' could never span runs, because its file would vanish with each new version.&#xA;'&#xA;' Precedence: BLV_OUTPUT_ROOT env var &gt; Config.local.json &gt; Settings sheet &gt; default.&#xA;Dim outputRoot As String = Environment.GetEnvironmentVariable(&quot;BLV_OUTPUT_ROOT&quot;)&#xA;If String.IsNullOrWhiteSpace(outputRoot) AndAlso d.ContainsKey(&quot;OutputRoot&quot;) Then&#xA;    outputRoot = Convert.ToString(d(&quot;OutputRoot&quot;)).Trim()&#xA;End If&#xA;If String.IsNullOrWhiteSpace(outputRoot) Then&#xA;    outputRoot = Path.Combine(in_ProjectRoot, &quot;Data&quot;, &quot;Output&quot;)&#xA;End If&#xA;If Not Path.IsPathRooted(outputRoot) Then&#xA;    outputRoot = Path.GetFullPath(Path.Combine(in_ProjectRoot, outputRoot))&#xA;End If&#xA;&#xA;d(&quot;OutputRoot&quot;) = outputRoot&#xA;d(&quot;ReportsFolder&quot;) = Path.Combine(outputRoot, &quot;Reports&quot;)&#xA;d(&quot;AuditLogFolder&quot;) = Path.Combine(outputRoot, &quot;AuditLogs&quot;)&#xA;d(&quot;ScreenshotFolder&quot;) = Path.Combine(outputRoot, &quot;Screenshots&quot;)&#xA;&#xA;' ---- Make sure output folders exist before anything tries to write ------&#xA;For Each key As String In New String() {&quot;ReportsFolder&quot;, &quot;AuditLogFolder&quot;, &quot;ScreenshotFolder&quot;}&#xA;    If d.ContainsKey(key) Then&#xA;        Dim v As String = Convert.ToString(d(key)).Trim()&#xA;        If v &lt;&gt; &quot;&quot; Then Directory.CreateDirectory(v)&#xA;    End If&#xA;Next&#xA;&#xA;' ---- Fail fast on missing or contradictory configuration ----------------&#xA;Dim missing As New List(Of String)&#xA;For Each key As String In New String() {&quot;DataSourceMode&quot;, &quot;LogisticsFile&quot;, &quot;BotIdentity&quot;, &quot;ContractAddress&quot;}&#xA;    If Not d.ContainsKey(key) OrElse Convert.ToString(d(key)).Trim() = &quot;&quot; Then&#xA;        missing.Add(key)&#xA;    End If&#xA;Next&#xA;If missing.Count &gt; 0 Then&#xA;    Throw New InvalidOperationException(&quot;Config.xlsx is missing required setting(s): &quot; &amp; String.Join(&quot;, &quot;, missing))&#xA;End If&#xA;&#xA;Dim mode As String = Convert.ToString(d(&quot;DataSourceMode&quot;)).Trim().ToUpperInvariant()&#xA;d(&quot;DataSourceMode&quot;) = mode&#xA;If Array.IndexOf(New String() {&quot;MOCK&quot;, &quot;API&quot;, &quot;WEB&quot;}, mode) &lt; 0 Then&#xA;    Throw New InvalidOperationException(&quot;DataSourceMode must be MOCK, API or WEB. Found: &quot; &amp; mode)&#xA;End If&#xA;If mode = &quot;API&quot; AndAlso Convert.ToString(d(&quot;EtherscanApiKey&quot;)).Trim() = &quot;&quot; Then&#xA;    Throw New InvalidOperationException(&quot;DataSourceMode is API but EtherscanApiKey is blank in Config.xlsx.&quot;)&#xA;End If&#xA;&#xA;Dim srcFile As String = &quot;&quot;&#xA;If mode = &quot;MOCK&quot; Then srcFile = Convert.ToString(d(&quot;MockChainFile&quot;))&#xA;If mode = &quot;MOCK&quot; AndAlso Not File.Exists(srcFile) Then&#xA;    Throw New IO.FileNotFoundException(&quot;Mock chain file not found: &quot; &amp; srcFile)&#xA;End If&#xA;If Not File.Exists(Convert.ToString(d(&quot;LogisticsFile&quot;))) Then&#xA;    Throw New IO.FileNotFoundException(&quot;Logistics workbook not found: &quot; &amp; Convert.ToString(d(&quot;LogisticsFile&quot;)))&#xA;End If&#xA;&#xA;' ---- Stamp this run -----------------------------------------------------&#xA;d(&quot;RunId&quot;) = DateTime.UtcNow.ToString(&quot;yyyyMMdd'T'HHmmss'Z'&quot;) &amp; &quot;-&quot; &amp; Convert.ToString(d(&quot;BotIdentity&quot;))&#xA;d(&quot;RunStartedUtc&quot;) = DateTime.UtcNow&#xA;d(&quot;MachineName&quot;) = Environment.MachineName&#xA;d(&quot;WindowsUser&quot;) = Environment.UserName&#xA;d(&quot;ProjectRoot&quot;) = in_ProjectRoot&#xA;&#xA;out_Config = d&#xA;out_Summary = String.Format(&quot;mode={0} rules={1} wallets={2} milestones={3} runId={4}&quot;, _&#xA;    mode, in_dtRules.Rows.Count, in_dtWallets.Rows.Count, in_dtSequence.Rows.Count, d(&quot;RunId&quot;))"><ui:InvokeCode.Arguments><scg:Dictionary x:TypeArguments="x:String, Argument"><InArgument x:TypeArguments="sd:DataTable" x:Key="in_dtSettings">[dtSettings]</InArgument><InArgument x:TypeArguments="sd:DataTable" x:Key="in_dtRules">[out_dtRules]</InArgument><InArgument x:TypeArguments="sd:DataTable" x:Key="in_dtWallets">[out_dtWallets]</InArgument><InArgument x:TypeArguments="sd:DataTable" x:Key="in_dtSequence">[out_dtSequence]</InArgument><InArgument x:TypeArguments="x:String" x:Key="in_ProjectRoot">[in_ProjectRoot]</InArgument><OutArgument x:TypeArguments="scg:Dictionary(x:String, x:Object)" x:Key="out_Config">[out_Config]</OutArgument><OutArgument x:TypeArguments="x:String" x:Key="out_Summary">[summary]</OutArgument></scg:Dictionary></ui:InvokeCode.Arguments></ui:InvokeCode><ui:LogMessage DisplayName="Log - [INIT]" Level="Info" Message="[&quot;[INIT] &quot; &amp; summary]" /></Sequence>
+</Activity>

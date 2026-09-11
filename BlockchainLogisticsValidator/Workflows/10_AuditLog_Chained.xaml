@@ -1,0 +1,86 @@
+<Activity mc:Ignorable="sap sap2010" x:Class="_10_AuditLog_Chained" mva:VisualBasic.Settings="{x:Null}"
+ xmlns="http://schemas.microsoft.com/netfx/2009/xaml/activities"
+ xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+ xmlns:mva="clr-namespace:Microsoft.VisualBasic.Activities;assembly=System.Activities"
+ xmlns:njl="clr-namespace:Newtonsoft.Json.Linq;assembly=Newtonsoft.Json"
+ xmlns:s="clr-namespace:System;assembly=System.Private.CoreLib"
+ xmlns:sap="http://schemas.microsoft.com/netfx/2009/xaml/activities/presentation"
+ xmlns:sap2010="http://schemas.microsoft.com/netfx/2010/xaml/activities/presentation"
+ xmlns:scg="clr-namespace:System.Collections.Generic;assembly=System.Private.CoreLib"
+ xmlns:sco="clr-namespace:System.Collections.ObjectModel;assembly=mscorlib"
+ xmlns:sd="clr-namespace:System.Data;assembly=System.Data.Common"
+ xmlns:ui="http://schemas.uipath.com/workflow/activities"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <x:Members>
+    <x:Property Name="in_Config" Type="InArgument(scg:Dictionary(x:String, x:Object))" />
+    <x:Property Name="in_dtResults" Type="InArgument(sd:DataTable)" />
+    <x:Property Name="out_AuditPath" Type="OutArgument(x:String)" />
+    <x:Property Name="out_HeadHash" Type="OutArgument(x:String)" />
+  </x:Members>
+
+  <TextExpression.NamespacesForImplementation>
+    <sco:Collection x:TypeArguments="x:String">
+      <x:String>System.Activities</x:String>
+      <x:String>System.Activities.Statements</x:String>
+      <x:String>System.Activities.Expressions</x:String>
+      <x:String>System.Activities.Validation</x:String>
+      <x:String>System.Activities.XamlIntegration</x:String>
+      <x:String>Microsoft.VisualBasic</x:String>
+      <x:String>Microsoft.VisualBasic.Activities</x:String>
+      <x:String>System</x:String>
+      <x:String>System.Collections</x:String>
+      <x:String>System.Collections.Generic</x:String>
+      <x:String>System.Collections.ObjectModel</x:String>
+      <x:String>System.Data</x:String>
+      <x:String>System.Diagnostics</x:String>
+      <x:String>System.Drawing</x:String>
+      <x:String>System.Globalization</x:String>
+      <x:String>System.IO</x:String>
+      <x:String>System.Linq</x:String>
+      <x:String>System.Net.Mail</x:String>
+      <x:String>System.Security.Cryptography</x:String>
+      <x:String>System.Text</x:String>
+      <x:String>System.Xml</x:String>
+      <x:String>System.Xml.Linq</x:String>
+      <x:String>Newtonsoft.Json</x:String>
+      <x:String>Newtonsoft.Json.Linq</x:String>
+      <x:String>UiPath.Core</x:String>
+      <x:String>UiPath.Core.Activities</x:String>
+      <x:String>System.Windows.Markup</x:String>
+    </sco:Collection>
+  </TextExpression.NamespacesForImplementation>
+  <TextExpression.ReferencesForImplementation>
+    <sco:Collection x:TypeArguments="AssemblyReference">
+      <AssemblyReference>System.Activities</AssemblyReference>
+      <AssemblyReference>Microsoft.VisualBasic</AssemblyReference>
+      <AssemblyReference>System.Private.CoreLib</AssemblyReference>
+      <AssemblyReference>mscorlib</AssemblyReference>
+      <AssemblyReference>System.Data</AssemblyReference>
+      <AssemblyReference>System</AssemblyReference>
+      <AssemblyReference>System.Linq</AssemblyReference>
+      <AssemblyReference>System.Data.Common</AssemblyReference>
+      <AssemblyReference>System.Drawing</AssemblyReference>
+      <AssemblyReference>System.Drawing.Primitives</AssemblyReference>
+      <AssemblyReference>System.Drawing.Common</AssemblyReference>
+      <AssemblyReference>System.Core</AssemblyReference>
+      <AssemblyReference>System.Runtime</AssemblyReference>
+      <AssemblyReference>System.Security.Cryptography</AssemblyReference>
+      <AssemblyReference>System.Xml</AssemblyReference>
+      <AssemblyReference>System.Xml.Linq</AssemblyReference>
+      <AssemblyReference>PresentationFramework</AssemblyReference>
+      <AssemblyReference>WindowsBase</AssemblyReference>
+      <AssemblyReference>PresentationCore</AssemblyReference>
+      <AssemblyReference>System.Xaml</AssemblyReference>
+      <AssemblyReference>Newtonsoft.Json</AssemblyReference>
+      <AssemblyReference>UiPath.System.Activities</AssemblyReference>
+      <AssemblyReference>UiPath.UiAutomation.Activities</AssemblyReference>
+      <AssemblyReference>UiPath.Excel.Activities</AssemblyReference>
+      <AssemblyReference>UiPath.Excel</AssemblyReference>
+      <AssemblyReference>UiPath.Mail.Activities</AssemblyReference>
+      <AssemblyReference>UiPath.Web.Activities</AssemblyReference>
+      <AssemblyReference>System.Data.DataSetExtensions</AssemblyReference>
+      <AssemblyReference>System.Net.Mail</AssemblyReference>
+    </sco:Collection>
+  </TextExpression.ReferencesForImplementation>
+  <Sequence DisplayName="10 - Append tamper-evident audit log"><Sequence.Variables><Variable x:TypeArguments="x:String" Name="summary" /></Sequence.Variables><ui:InvokeCode DisplayName="Invoke Code - hash-chain the validation results" Language="VBNet" Code="&#xA;Dim folder As String = Convert.ToString(in_Config(&quot;AuditLogFolder&quot;))&#xA;Dim outPath As String = Path.Combine(folder, Convert.ToString(in_Config(&quot;AuditLogFile&quot;)))&#xA;Directory.CreateDirectory(folder)&#xA;&#xA;Dim GENESIS As String = New String(&quot;0&quot;c, 64)&#xA;Dim prevHash As String = GENESIS&#xA;Dim seq As Long = 0&#xA;&#xA;' Continue an existing chain rather than starting a fresh one - the audit trail is&#xA;' append-only and spans every run of the bot.&#xA;If File.Exists(outPath) Then&#xA;    Dim lines() As String = File.ReadAllLines(outPath)&#xA;    If lines.Length &gt; 1 Then&#xA;        Dim last As String = lines(lines.Length - 1)&#xA;        If last.Trim() &lt;&gt; &quot;&quot; Then&#xA;            ' Fields 0..16 are comma-free by construction, so Split is safe for them;&#xA;            ' only FailureReasons (17, quoted) may contain commas. EntryHash is 16 -&#xA;            ' it MUST track the column order above, or every run resumes the chain from&#xA;            ' the wrong value and the links break at each run boundary.&#xA;            Dim p() As String = last.Split(&quot;,&quot;c)&#xA;            seq = Convert.ToInt64(p(0))&#xA;            prevHash = p(16).Trim()&#xA;        End If&#xA;    End If&#xA;End If&#xA;&#xA;Dim sha As SHA256 = SHA256.Create()&#xA;Dim outLines As New List(Of String)&#xA;If Not File.Exists(outPath) Then outLines.Add(&quot;Seq,TimestampUtc,RunId,BotIdentity,MachineName,TxHash,ShipmentID,EventName,ChainTimestampUtc,OnChainQty,ValidationStatus,Severity,HumanDecision,HumanDecidedBy,RecordHash,PrevHash,EntryHash,FailureReasons&quot;)&#xA;&#xA;Dim runId As String = Convert.ToString(in_Config(&quot;RunId&quot;))&#xA;Dim bot As String = Convert.ToString(in_Config(&quot;BotIdentity&quot;))&#xA;Dim machine As String = Convert.ToString(in_Config(&quot;MachineName&quot;))&#xA;&#xA;For Each r As DataRow In in_dtResults.Rows&#xA;    seq += 1&#xA;    Dim stamp As String = DateTime.UtcNow.ToString(&quot;o&quot;, CultureInfo.InvariantCulture)&#xA;    Dim chainTs As String = Convert.ToDateTime(r(&quot;ChainTimestampUtc&quot;)).ToString(&quot;s&quot;, CultureInfo.InvariantCulture)&#xA;    Dim reasons As String = Convert.ToString(r(&quot;FailureReasons&quot;))&#xA;    ' Blank placeholders keep every hash-relevant field comma-free and non-empty.&#xA;    Dim humanDecision As String = Convert.ToString(r(&quot;HumanDecision&quot;)).Replace(&quot;,&quot;, &quot;;&quot;)&#xA;    Dim humanBy As String = Convert.ToString(r(&quot;HumanDecidedBy&quot;)).Replace(&quot;,&quot;, &quot;;&quot;)&#xA;    If humanDecision = &quot;&quot; Then humanDecision = &quot;-&quot;&#xA;    If humanBy = &quot;&quot; Then humanBy = &quot;-&quot;&#xA;&#xA;    ' RecordHash fixes the verdict and the evidence behind it.&#xA;    Dim recordInput As String = String.Join(&quot;|&quot;, New String() { _&#xA;        runId, Convert.ToString(r(&quot;TxHash&quot;)), Convert.ToString(r(&quot;ShipmentID&quot;)), _&#xA;        Convert.ToString(r(&quot;EventName&quot;)), chainTs, Convert.ToString(r(&quot;OnChainQty&quot;)), _&#xA;        Convert.ToString(r(&quot;ValidationStatus&quot;)), Convert.ToString(r(&quot;Severity&quot;)), reasons, _&#xA;        humanDecision, humanBy})&#xA;    ' Hash the SANITISED values, not the raw ones: the verifier can only ever see what&#xA;    ' was written to the file, so hashing anything else guarantees a false mismatch.&#xA;    Dim recordHash As String = BitConverter.ToString(sha.ComputeHash(Encoding.UTF8.GetBytes(recordInput))).Replace(&quot;-&quot;, &quot;&quot;).ToLowerInvariant()&#xA;&#xA;    ' EntryHash chains this entry to the one before it.&#xA;    Dim entryInput As String = String.Join(&quot;|&quot;, New String() { _&#xA;        seq.ToString(), stamp, bot, machine, recordHash, prevHash})&#xA;    Dim entryHash As String = BitConverter.ToString(sha.ComputeHash(Encoding.UTF8.GetBytes(entryInput))).Replace(&quot;-&quot;, &quot;&quot;).ToLowerInvariant()&#xA;&#xA;    Dim quoted As String = &quot;&quot;&quot;&quot; &amp; reasons.Replace(&quot;&quot;&quot;&quot;, &quot;&quot;&quot;&quot;&quot;&quot;) &amp; &quot;&quot;&quot;&quot;&#xA;    outLines.Add(String.Join(&quot;,&quot;, New String() { _&#xA;        seq.ToString(), stamp, runId, bot, machine, _&#xA;        Convert.ToString(r(&quot;TxHash&quot;)), Convert.ToString(r(&quot;ShipmentID&quot;)), _&#xA;        Convert.ToString(r(&quot;EventName&quot;)), chainTs, Convert.ToString(r(&quot;OnChainQty&quot;)), _&#xA;        Convert.ToString(r(&quot;ValidationStatus&quot;)), Convert.ToString(r(&quot;Severity&quot;)), _&#xA;        humanDecision, humanBy, recordHash, prevHash, entryHash, quoted}))&#xA;&#xA;    prevHash = entryHash&#xA;Next&#xA;&#xA;File.AppendAllLines(outPath, outLines, Encoding.UTF8)&#xA;&#xA;out_AuditPath = outPath&#xA;out_HeadHash = prevHash&#xA;out_Summary = String.Format(&quot;{0} entries appended, chain head {1}...&quot;, in_dtResults.Rows.Count, prevHash.Substring(0, 16))"><ui:InvokeCode.Arguments><scg:Dictionary x:TypeArguments="x:String, Argument"><InArgument x:TypeArguments="scg:Dictionary(x:String, x:Object)" x:Key="in_Config">[in_Config]</InArgument><InArgument x:TypeArguments="sd:DataTable" x:Key="in_dtResults">[in_dtResults]</InArgument><OutArgument x:TypeArguments="x:String" x:Key="out_AuditPath">[out_AuditPath]</OutArgument><OutArgument x:TypeArguments="x:String" x:Key="out_HeadHash">[out_HeadHash]</OutArgument><OutArgument x:TypeArguments="x:String" x:Key="out_Summary">[summary]</OutArgument></scg:Dictionary></ui:InvokeCode.Arguments></ui:InvokeCode><ui:LogMessage DisplayName="Log - [AUDIT]" Level="Info" Message="[&quot;[AUDIT] &quot; &amp; summary]" /></Sequence>
+</Activity>

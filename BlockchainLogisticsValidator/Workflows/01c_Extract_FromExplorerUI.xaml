@@ -1,0 +1,87 @@
+<Activity mc:Ignorable="sap sap2010" x:Class="_01c_Extract_FromExplorerUI" mva:VisualBasic.Settings="{x:Null}"
+ xmlns="http://schemas.microsoft.com/netfx/2009/xaml/activities"
+ xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+ xmlns:mva="clr-namespace:Microsoft.VisualBasic.Activities;assembly=System.Activities"
+ xmlns:njl="clr-namespace:Newtonsoft.Json.Linq;assembly=Newtonsoft.Json"
+ xmlns:s="clr-namespace:System;assembly=System.Private.CoreLib"
+ xmlns:sap="http://schemas.microsoft.com/netfx/2009/xaml/activities/presentation"
+ xmlns:sap2010="http://schemas.microsoft.com/netfx/2010/xaml/activities/presentation"
+ xmlns:scg="clr-namespace:System.Collections.Generic;assembly=System.Private.CoreLib"
+ xmlns:sco="clr-namespace:System.Collections.ObjectModel;assembly=mscorlib"
+ xmlns:sd="clr-namespace:System.Data;assembly=System.Data.Common"
+ xmlns:ui="http://schemas.uipath.com/workflow/activities"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <x:Members>
+    <x:Property Name="in_Config" Type="InArgument(scg:Dictionary(x:String, x:Object))" />
+    <x:Property Name="out_dtChain" Type="OutArgument(sd:DataTable)" />
+  </x:Members>
+
+  <TextExpression.NamespacesForImplementation>
+    <sco:Collection x:TypeArguments="x:String">
+      <x:String>System.Activities</x:String>
+      <x:String>System.Activities.Statements</x:String>
+      <x:String>System.Activities.Expressions</x:String>
+      <x:String>System.Activities.Validation</x:String>
+      <x:String>System.Activities.XamlIntegration</x:String>
+      <x:String>Microsoft.VisualBasic</x:String>
+      <x:String>Microsoft.VisualBasic.Activities</x:String>
+      <x:String>System</x:String>
+      <x:String>System.Collections</x:String>
+      <x:String>System.Collections.Generic</x:String>
+      <x:String>System.Collections.ObjectModel</x:String>
+      <x:String>System.Data</x:String>
+      <x:String>System.Diagnostics</x:String>
+      <x:String>System.Drawing</x:String>
+      <x:String>System.Globalization</x:String>
+      <x:String>System.IO</x:String>
+      <x:String>System.Linq</x:String>
+      <x:String>System.Net.Mail</x:String>
+      <x:String>System.Security.Cryptography</x:String>
+      <x:String>System.Text</x:String>
+      <x:String>System.Xml</x:String>
+      <x:String>System.Xml.Linq</x:String>
+      <x:String>Newtonsoft.Json</x:String>
+      <x:String>Newtonsoft.Json.Linq</x:String>
+      <x:String>UiPath.Core</x:String>
+      <x:String>UiPath.Core.Activities</x:String>
+      <x:String>System.Windows.Markup</x:String>
+      <x:String>System.Text.RegularExpressions</x:String>
+      <x:String>System.Net</x:String>
+    </sco:Collection>
+  </TextExpression.NamespacesForImplementation>
+  <TextExpression.ReferencesForImplementation>
+    <sco:Collection x:TypeArguments="AssemblyReference">
+      <AssemblyReference>System.Activities</AssemblyReference>
+      <AssemblyReference>Microsoft.VisualBasic</AssemblyReference>
+      <AssemblyReference>System.Private.CoreLib</AssemblyReference>
+      <AssemblyReference>mscorlib</AssemblyReference>
+      <AssemblyReference>System.Data</AssemblyReference>
+      <AssemblyReference>System</AssemblyReference>
+      <AssemblyReference>System.Linq</AssemblyReference>
+      <AssemblyReference>System.Data.Common</AssemblyReference>
+      <AssemblyReference>System.Drawing</AssemblyReference>
+      <AssemblyReference>System.Drawing.Primitives</AssemblyReference>
+      <AssemblyReference>System.Drawing.Common</AssemblyReference>
+      <AssemblyReference>System.Core</AssemblyReference>
+      <AssemblyReference>System.Runtime</AssemblyReference>
+      <AssemblyReference>System.Security.Cryptography</AssemblyReference>
+      <AssemblyReference>System.Xml</AssemblyReference>
+      <AssemblyReference>System.Xml.Linq</AssemblyReference>
+      <AssemblyReference>PresentationFramework</AssemblyReference>
+      <AssemblyReference>WindowsBase</AssemblyReference>
+      <AssemblyReference>PresentationCore</AssemblyReference>
+      <AssemblyReference>System.Xaml</AssemblyReference>
+      <AssemblyReference>Newtonsoft.Json</AssemblyReference>
+      <AssemblyReference>UiPath.System.Activities</AssemblyReference>
+      <AssemblyReference>UiPath.UiAutomation.Activities</AssemblyReference>
+      <AssemblyReference>UiPath.Excel.Activities</AssemblyReference>
+      <AssemblyReference>UiPath.Excel</AssemblyReference>
+      <AssemblyReference>UiPath.Mail.Activities</AssemblyReference>
+      <AssemblyReference>UiPath.Web.Activities</AssemblyReference>
+      <AssemblyReference>System.Data.DataSetExtensions</AssemblyReference>
+      <AssemblyReference>System.Net.Mail</AssemblyReference>
+      <AssemblyReference>System.Text.RegularExpressions</AssemblyReference>
+    </sco:Collection>
+  </TextExpression.ReferencesForImplementation>
+  <Sequence DisplayName="01c - Extract by scraping a blockchain explorer page"><Sequence.Variables><Variable x:TypeArguments="x:Boolean" Name="isRemote" /><Variable x:TypeArguments="x:String" Name="location" /><Variable x:TypeArguments="x:String" Name="pageHtml" /><Variable x:TypeArguments="x:String" Name="summary" /></Sequence.Variables><ui:InvokeCode DisplayName="Invoke Code - resolve the explorer page location" Language="VBNet" Code="' The setting may be a project-relative path or a live http(s) URL.&#xA;Dim v As String = Convert.ToString(in_Config(&quot;ExplorerPageUrl&quot;)).Trim()&#xA;If v.StartsWith(&quot;http://&quot;, StringComparison.OrdinalIgnoreCase) OrElse _&#xA;   v.StartsWith(&quot;https://&quot;, StringComparison.OrdinalIgnoreCase) Then&#xA;    out_IsRemote = True&#xA;    out_Location = v&#xA;Else&#xA;    out_IsRemote = False&#xA;    If Path.IsPathRooted(v) Then&#xA;        out_Location = v&#xA;    Else&#xA;        out_Location = Path.GetFullPath(Path.Combine(Convert.ToString(in_Config(&quot;ProjectRoot&quot;)), v))&#xA;    End If&#xA;    If Not File.Exists(out_Location) Then&#xA;        Throw New IO.FileNotFoundException(&quot;Explorer page not found: &quot; &amp; out_Location &amp; _&#xA;            &quot;. Run tools/generate_explorer_page.py to create it.&quot;)&#xA;    End If&#xA;End If"><ui:InvokeCode.Arguments><scg:Dictionary x:TypeArguments="x:String, Argument"><InArgument x:TypeArguments="scg:Dictionary(x:String, x:Object)" x:Key="in_Config">[in_Config]</InArgument><OutArgument x:TypeArguments="x:Boolean" x:Key="out_IsRemote">[isRemote]</OutArgument><OutArgument x:TypeArguments="x:String" x:Key="out_Location">[location]</OutArgument></scg:Dictionary></ui:InvokeCode.Arguments></ui:InvokeCode><ui:LogMessage DisplayName="Log - [EXTRACT/WEB] Scraping" Level="Info" Message="[&quot;[EXTRACT/WEB] Scraping &quot; &amp; location]" /><If DisplayName="If - remote or local page" Condition="[isRemote]"><If.Then><Sequence DisplayName="Fetch over HTTP"><ui:HttpClient DisplayName="HTTP Request - explorer page" EndPoint="[location]" Method="GET" AcceptFormat="ANY" TimeoutMS="[60000]" Result="[pageHtml]" /></Sequence></If.Then><If.Else><Sequence DisplayName="Read the local page"><ui:ReadTextFile DisplayName="Read Text File - explorer page" FileName="[location]" Content="[pageHtml]" /></Sequence></If.Else></If><ui:InvokeCode DisplayName="Invoke Code - parse the table and ABI decode" Language="VBNet" Code="' Parse the explorer's transaction table, then ABI-decode each row's call data exactly as&#xA;' the API reader does. Cells are read positionally, matching COLUMNS in&#xA;' tools/generate_explorer_page.py:&#xA;'   0 TxHash, 1 Method, 2 Block, 3 DateTimeUtc, 4 From, 5 To, 6 Value, 7 Input&#xA;&#xA;' Narrow to the transaction table's body so unrelated tables on the page are ignored.&#xA;Dim tbodyStart As Integer = in_PageHtml.IndexOf(&quot;&lt;tbody&gt;&quot;, StringComparison.OrdinalIgnoreCase)&#xA;Dim tbodyEnd As Integer = in_PageHtml.IndexOf(&quot;&lt;/tbody&gt;&quot;, StringComparison.OrdinalIgnoreCase)&#xA;If tbodyStart &lt; 0 OrElse tbodyEnd &lt; 0 Then&#xA;    Throw New InvalidOperationException(&quot;No transaction table found on the explorer page. &quot; &amp; _&#xA;        &quot;If a live explorer is being targeted, its markup differs from the expected layout.&quot;)&#xA;End If&#xA;Dim tbody As String = in_PageHtml.Substring(tbodyStart, tbodyEnd - tbodyStart)&#xA;&#xA;Dim rowRx As New Regex(&quot;&lt;tr[^&gt;]*&gt;(.*?)&lt;/tr&gt;&quot;, RegexOptions.Singleline Or RegexOptions.IgnoreCase)&#xA;Dim cellRx As New Regex(&quot;&lt;td[^&gt;]*&gt;(.*?)&lt;/td&gt;&quot;, RegexOptions.Singleline Or RegexOptions.IgnoreCase)&#xA;Dim tagRx As New Regex(&quot;&lt;[^&gt;]+&gt;&quot;)&#xA;&#xA;Dim dt As New DataTable(&quot;ChainTransactions&quot;)&#xA;dt.Columns.Add(&quot;TxHash&quot;, GetType(String))&#xA;dt.Columns.Add(&quot;BlockNumber&quot;, GetType(Long))&#xA;dt.Columns.Add(&quot;EventTimestampUtc&quot;, GetType(DateTime))&#xA;dt.Columns.Add(&quot;SenderAddress&quot;, GetType(String))&#xA;dt.Columns.Add(&quot;ContractAddress&quot;, GetType(String))&#xA;dt.Columns.Add(&quot;EventSelector&quot;, GetType(String))&#xA;dt.Columns.Add(&quot;ShipmentID&quot;, GetType(String))&#xA;dt.Columns.Add(&quot;OnChainQty&quot;, GetType(Long))&#xA;dt.Columns.Add(&quot;PONumber&quot;, GetType(String))&#xA;dt.Columns.Add(&quot;TxFailed&quot;, GetType(Boolean))&#xA;dt.Columns.Add(&quot;SourceMode&quot;, GetType(String))&#xA;dt.Columns.Add(&quot;RawInput&quot;, GetType(String))&#xA;&#xA;Dim scrapedRows As Integer = 0&#xA;Dim skipped As Integer = 0&#xA;&#xA;For Each rowMatch As Match In rowRx.Matches(tbody)&#xA;    Dim cells As New List(Of String)&#xA;    For Each cellMatch As Match In cellRx.Matches(rowMatch.Groups(1).Value)&#xA;        Dim rawCell As String = tagRx.Replace(cellMatch.Groups(1).Value, &quot;&quot;)&#xA;        cells.Add(System.Net.WebUtility.HtmlDecode(rawCell).Trim())&#xA;    Next&#xA;    If cells.Count &lt; 8 Then&#xA;        Continue For&#xA;    End If&#xA;    scrapedRows += 1&#xA;&#xA;    Dim inputHex As String = cells(7)&#xA;    If inputHex.Length &lt; 10 Then&#xA;        skipped += 1&#xA;        Continue For&#xA;    End If&#xA;&#xA;    ' ---- ABI decode: f(string, uint256, string) -------------------------&#xA;    Dim payload As String = inputHex.Substring(10)&#xA;    Dim words As New List(Of String)&#xA;    Dim i As Integer = 0&#xA;    While i + 64 &lt;= payload.Length&#xA;        words.Add(payload.Substring(i, 64))&#xA;        i += 64&#xA;    End While&#xA;    If words.Count &lt; 3 Then&#xA;        skipped += 1&#xA;        Continue For&#xA;    End If&#xA;&#xA;    Dim qty As Long = Convert.ToInt64(words(1), 16)&#xA;    Dim offs() As Integer = {Convert.ToInt32(words(0), 16) \ 32, Convert.ToInt32(words(2), 16) \ 32}&#xA;    Dim strs(1) As String&#xA;    For n As Integer = 0 To 1&#xA;        Dim idx As Integer = offs(n)&#xA;        Dim slen As Integer = Convert.ToInt32(words(idx), 16)&#xA;        Dim sb As New StringBuilder()&#xA;        Dim w As Integer = idx + 1&#xA;        While sb.Length &lt; slen * 2 AndAlso w &lt; words.Count&#xA;            sb.Append(words(w))&#xA;            w += 1&#xA;        End While&#xA;        Dim hx As String = sb.ToString()&#xA;        Dim rawBytes(Math.Max(slen - 1, 0)) As Byte&#xA;        For k As Integer = 0 To slen - 1&#xA;            rawBytes(k) = Convert.ToByte(hx.Substring(k * 2, 2), 16)&#xA;        Next&#xA;        strs(n) = Encoding.UTF8.GetString(rawBytes, 0, slen)&#xA;    Next&#xA;&#xA;    Dim rw As DataRow = dt.NewRow()&#xA;    rw(&quot;TxHash&quot;) = cells(0).ToLowerInvariant()&#xA;    rw(&quot;BlockNumber&quot;) = Convert.ToInt64(cells(2))&#xA;    rw(&quot;EventTimestampUtc&quot;) = DateTime.SpecifyKind( _&#xA;        DateTime.ParseExact(cells(3), &quot;yyyy-MM-dd HH:mm:ss&quot;, CultureInfo.InvariantCulture), _&#xA;        DateTimeKind.Utc)&#xA;    rw(&quot;SenderAddress&quot;) = cells(4).ToLowerInvariant()&#xA;    rw(&quot;ContractAddress&quot;) = cells(5).ToLowerInvariant()&#xA;    rw(&quot;EventSelector&quot;) = inputHex.Substring(0, 10).ToLowerInvariant()&#xA;    rw(&quot;ShipmentID&quot;) = strs(0)&#xA;    rw(&quot;OnChainQty&quot;) = qty&#xA;    rw(&quot;PONumber&quot;) = strs(1)&#xA;    rw(&quot;TxFailed&quot;) = False&#xA;    rw(&quot;SourceMode&quot;) = &quot;WEB&quot;&#xA;    rw(&quot;RawInput&quot;) = inputHex&#xA;    dt.Rows.Add(rw)&#xA;Next&#xA;&#xA;out_dtChain = dt&#xA;out_Summary = String.Format(&quot;{0} table row(s) scraped, {1} decoded, {2} skipped&quot;, _&#xA;    scrapedRows, dt.Rows.Count, skipped)"><ui:InvokeCode.Arguments><scg:Dictionary x:TypeArguments="x:String, Argument"><InArgument x:TypeArguments="x:String" x:Key="in_PageHtml">[pageHtml]</InArgument><OutArgument x:TypeArguments="sd:DataTable" x:Key="out_dtChain">[out_dtChain]</OutArgument><OutArgument x:TypeArguments="x:String" x:Key="out_Summary">[summary]</OutArgument></scg:Dictionary></ui:InvokeCode.Arguments></ui:InvokeCode><ui:LogMessage DisplayName="Log - [EXTRACT/WEB]" Level="Info" Message="[&quot;[EXTRACT/WEB] &quot; &amp; summary]" /></Sequence>
+</Activity>

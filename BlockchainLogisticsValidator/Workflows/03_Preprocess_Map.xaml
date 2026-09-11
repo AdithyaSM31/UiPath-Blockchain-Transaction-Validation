@@ -1,0 +1,87 @@
+<Activity mc:Ignorable="sap sap2010" x:Class="_03_Preprocess_Map" mva:VisualBasic.Settings="{x:Null}"
+ xmlns="http://schemas.microsoft.com/netfx/2009/xaml/activities"
+ xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+ xmlns:mva="clr-namespace:Microsoft.VisualBasic.Activities;assembly=System.Activities"
+ xmlns:njl="clr-namespace:Newtonsoft.Json.Linq;assembly=Newtonsoft.Json"
+ xmlns:s="clr-namespace:System;assembly=System.Private.CoreLib"
+ xmlns:sap="http://schemas.microsoft.com/netfx/2009/xaml/activities/presentation"
+ xmlns:sap2010="http://schemas.microsoft.com/netfx/2010/xaml/activities/presentation"
+ xmlns:scg="clr-namespace:System.Collections.Generic;assembly=System.Private.CoreLib"
+ xmlns:sco="clr-namespace:System.Collections.ObjectModel;assembly=mscorlib"
+ xmlns:sd="clr-namespace:System.Data;assembly=System.Data.Common"
+ xmlns:ui="http://schemas.uipath.com/workflow/activities"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <x:Members>
+    <x:Property Name="in_dtChain" Type="InArgument(sd:DataTable)" />
+    <x:Property Name="in_dtShipments" Type="InArgument(sd:DataTable)" />
+    <x:Property Name="in_dtErpEvents" Type="InArgument(sd:DataTable)" />
+    <x:Property Name="in_dtSequence" Type="InArgument(sd:DataTable)" />
+    <x:Property Name="out_dtJoined" Type="OutArgument(sd:DataTable)" />
+  </x:Members>
+
+  <TextExpression.NamespacesForImplementation>
+    <sco:Collection x:TypeArguments="x:String">
+      <x:String>System.Activities</x:String>
+      <x:String>System.Activities.Statements</x:String>
+      <x:String>System.Activities.Expressions</x:String>
+      <x:String>System.Activities.Validation</x:String>
+      <x:String>System.Activities.XamlIntegration</x:String>
+      <x:String>Microsoft.VisualBasic</x:String>
+      <x:String>Microsoft.VisualBasic.Activities</x:String>
+      <x:String>System</x:String>
+      <x:String>System.Collections</x:String>
+      <x:String>System.Collections.Generic</x:String>
+      <x:String>System.Collections.ObjectModel</x:String>
+      <x:String>System.Data</x:String>
+      <x:String>System.Diagnostics</x:String>
+      <x:String>System.Drawing</x:String>
+      <x:String>System.Globalization</x:String>
+      <x:String>System.IO</x:String>
+      <x:String>System.Linq</x:String>
+      <x:String>System.Net.Mail</x:String>
+      <x:String>System.Security.Cryptography</x:String>
+      <x:String>System.Text</x:String>
+      <x:String>System.Xml</x:String>
+      <x:String>System.Xml.Linq</x:String>
+      <x:String>Newtonsoft.Json</x:String>
+      <x:String>Newtonsoft.Json.Linq</x:String>
+      <x:String>UiPath.Core</x:String>
+      <x:String>UiPath.Core.Activities</x:String>
+      <x:String>System.Windows.Markup</x:String>
+    </sco:Collection>
+  </TextExpression.NamespacesForImplementation>
+  <TextExpression.ReferencesForImplementation>
+    <sco:Collection x:TypeArguments="AssemblyReference">
+      <AssemblyReference>System.Activities</AssemblyReference>
+      <AssemblyReference>Microsoft.VisualBasic</AssemblyReference>
+      <AssemblyReference>System.Private.CoreLib</AssemblyReference>
+      <AssemblyReference>mscorlib</AssemblyReference>
+      <AssemblyReference>System.Data</AssemblyReference>
+      <AssemblyReference>System</AssemblyReference>
+      <AssemblyReference>System.Linq</AssemblyReference>
+      <AssemblyReference>System.Data.Common</AssemblyReference>
+      <AssemblyReference>System.Drawing</AssemblyReference>
+      <AssemblyReference>System.Drawing.Primitives</AssemblyReference>
+      <AssemblyReference>System.Drawing.Common</AssemblyReference>
+      <AssemblyReference>System.Core</AssemblyReference>
+      <AssemblyReference>System.Runtime</AssemblyReference>
+      <AssemblyReference>System.Security.Cryptography</AssemblyReference>
+      <AssemblyReference>System.Xml</AssemblyReference>
+      <AssemblyReference>System.Xml.Linq</AssemblyReference>
+      <AssemblyReference>PresentationFramework</AssemblyReference>
+      <AssemblyReference>WindowsBase</AssemblyReference>
+      <AssemblyReference>PresentationCore</AssemblyReference>
+      <AssemblyReference>System.Xaml</AssemblyReference>
+      <AssemblyReference>Newtonsoft.Json</AssemblyReference>
+      <AssemblyReference>UiPath.System.Activities</AssemblyReference>
+      <AssemblyReference>UiPath.UiAutomation.Activities</AssemblyReference>
+      <AssemblyReference>UiPath.Excel.Activities</AssemblyReference>
+      <AssemblyReference>UiPath.Excel</AssemblyReference>
+      <AssemblyReference>UiPath.Mail.Activities</AssemblyReference>
+      <AssemblyReference>UiPath.Web.Activities</AssemblyReference>
+      <AssemblyReference>System.Data.DataSetExtensions</AssemblyReference>
+      <AssemblyReference>System.Net.Mail</AssemblyReference>
+    </sco:Collection>
+  </TextExpression.ReferencesForImplementation>
+  <Sequence DisplayName="03 - Preprocess and map chain to ERP"><Sequence.Variables><Variable x:TypeArguments="x:String" Name="summary" /></Sequence.Variables><ui:LogMessage DisplayName="Log - [MAP] Joining" Level="Info" Message="[&quot;[MAP] Joining &quot; &amp; in_dtChain.Rows.Count.ToString() &amp; &quot; chain rows to ERP milestones&quot;]" /><ui:InvokeCode DisplayName="Invoke Code - map and join" Language="VBNet" Code="' Join the chain feed to the ERP expectation for the same (shipment, milestone).&#xA;' The milestone name is resolved from the function selector via the EventSequence&#xA;' sheet, so adding a new milestone is a config change, not a workflow change.&#xA;Dim selectorToEvent As New Dictionary(Of String, String)(StringComparer.OrdinalIgnoreCase)&#xA;Dim eventOrder As New Dictionary(Of String, Integer)(StringComparer.OrdinalIgnoreCase)&#xA;For Each r As DataRow In in_dtSequence.Rows&#xA;    Dim sel As String = Convert.ToString(r(&quot;MethodId&quot;)).Trim().ToLowerInvariant()&#xA;    Dim nm As String = Convert.ToString(r(&quot;EventName&quot;)).Trim()&#xA;    If sel &lt;&gt; &quot;&quot; Then selectorToEvent(sel) = nm&#xA;    eventOrder(nm) = Convert.ToInt32(r(&quot;StepOrder&quot;))&#xA;Next&#xA;&#xA;' ERP lookups, keyed the same way.&#xA;Dim erpEvent As New Dictionary(Of String, DataRow)(StringComparer.OrdinalIgnoreCase)&#xA;For Each r As DataRow In in_dtErpEvents.Rows&#xA;    erpEvent(Convert.ToString(r(&quot;ShipmentID&quot;)).Trim() &amp; &quot;|&quot; &amp; Convert.ToString(r(&quot;EventName&quot;)).Trim()) = r&#xA;Next&#xA;Dim shipment As New Dictionary(Of String, DataRow)(StringComparer.OrdinalIgnoreCase)&#xA;For Each r As DataRow In in_dtShipments.Rows&#xA;    shipment(Convert.ToString(r(&quot;ShipmentID&quot;)).Trim()) = r&#xA;Next&#xA;&#xA;Dim dt As New DataTable(&quot;JoinedTransactions&quot;)&#xA;dt.Columns.Add(&quot;RowNo&quot;, GetType(Integer))&#xA;dt.Columns.Add(&quot;TxHash&quot;, GetType(String))&#xA;dt.Columns.Add(&quot;BlockNumber&quot;, GetType(Long))&#xA;dt.Columns.Add(&quot;ShipmentID&quot;, GetType(String))&#xA;dt.Columns.Add(&quot;EventName&quot;, GetType(String))&#xA;dt.Columns.Add(&quot;StepOrder&quot;, GetType(Integer))&#xA;dt.Columns.Add(&quot;EventSelector&quot;, GetType(String))&#xA;dt.Columns.Add(&quot;ChainTimestampUtc&quot;, GetType(DateTime))&#xA;dt.Columns.Add(&quot;ErpExpectedTimestampUtc&quot;, GetType(Object))&#xA;dt.Columns.Add(&quot;DriftHours&quot;, GetType(Object))&#xA;dt.Columns.Add(&quot;SenderAddress&quot;, GetType(String))&#xA;dt.Columns.Add(&quot;ErpHandlerAddress&quot;, GetType(String))&#xA;dt.Columns.Add(&quot;ErpHandlerPartner&quot;, GetType(String))&#xA;dt.Columns.Add(&quot;OnChainQty&quot;, GetType(Long))&#xA;dt.Columns.Add(&quot;ErpExpectedQty&quot;, GetType(Object))&#xA;dt.Columns.Add(&quot;PONumber&quot;, GetType(String))&#xA;dt.Columns.Add(&quot;ErpPONumber&quot;, GetType(String))&#xA;dt.Columns.Add(&quot;Product&quot;, GetType(String))&#xA;dt.Columns.Add(&quot;TxFailed&quot;, GetType(Boolean))&#xA;dt.Columns.Add(&quot;MatchStatus&quot;, GetType(String))&#xA;&#xA;Dim unmatched As Integer = 0&#xA;Dim n As Integer = 0&#xA;&#xA;For Each c As DataRow In in_dtChain.Rows&#xA;    n += 1&#xA;    Dim sel As String = Convert.ToString(c(&quot;EventSelector&quot;)).Trim().ToLowerInvariant()&#xA;    Dim sid As String = Convert.ToString(c(&quot;ShipmentID&quot;)).Trim()&#xA;    Dim evName As String = &quot;&quot;&#xA;    If selectorToEvent.ContainsKey(sel) Then evName = selectorToEvent(sel)&#xA;&#xA;    Dim rw As DataRow = dt.NewRow()&#xA;    rw(&quot;RowNo&quot;) = n&#xA;    rw(&quot;TxHash&quot;) = c(&quot;TxHash&quot;)&#xA;    rw(&quot;BlockNumber&quot;) = c(&quot;BlockNumber&quot;)&#xA;    rw(&quot;ShipmentID&quot;) = sid&#xA;    rw(&quot;EventName&quot;) = evName&#xA;    rw(&quot;StepOrder&quot;) = If(evName &lt;&gt; &quot;&quot; AndAlso eventOrder.ContainsKey(evName), eventOrder(evName), 0)&#xA;    rw(&quot;EventSelector&quot;) = sel&#xA;    rw(&quot;ChainTimestampUtc&quot;) = c(&quot;EventTimestampUtc&quot;)&#xA;    rw(&quot;SenderAddress&quot;) = c(&quot;SenderAddress&quot;)&#xA;    rw(&quot;OnChainQty&quot;) = c(&quot;OnChainQty&quot;)&#xA;    rw(&quot;PONumber&quot;) = c(&quot;PONumber&quot;)&#xA;    rw(&quot;TxFailed&quot;) = c(&quot;TxFailed&quot;)&#xA;&#xA;    Dim status As String = &quot;MATCHED&quot;&#xA;    If evName = &quot;&quot; Then status = &quot;UNKNOWN_SELECTOR&quot;&#xA;&#xA;    Dim key As String = sid &amp; &quot;|&quot; &amp; evName&#xA;    If erpEvent.ContainsKey(key) Then&#xA;        Dim e As DataRow = erpEvent(key)&#xA;        Dim expectedAt As DateTime = Convert.ToDateTime(e(&quot;ExpectedEventTimestampUtc&quot;))&#xA;        rw(&quot;ErpExpectedTimestampUtc&quot;) = expectedAt&#xA;        rw(&quot;DriftHours&quot;) = Math.Abs((Convert.ToDateTime(c(&quot;EventTimestampUtc&quot;)) - expectedAt).TotalHours)&#xA;        rw(&quot;ErpHandlerAddress&quot;) = Convert.ToString(e(&quot;HandlerAddress&quot;))&#xA;        rw(&quot;ErpHandlerPartner&quot;) = Convert.ToString(e(&quot;HandlerPartner&quot;))&#xA;    Else&#xA;        rw(&quot;ErpExpectedTimestampUtc&quot;) = DBNull.Value&#xA;        rw(&quot;DriftHours&quot;) = DBNull.Value&#xA;        rw(&quot;ErpHandlerAddress&quot;) = &quot;&quot;&#xA;        rw(&quot;ErpHandlerPartner&quot;) = &quot;&quot;&#xA;        If status = &quot;MATCHED&quot; Then status = &quot;NO_ERP_MILESTONE&quot;&#xA;    End If&#xA;&#xA;    If shipment.ContainsKey(sid) Then&#xA;        Dim s As DataRow = shipment(sid)&#xA;        rw(&quot;ErpExpectedQty&quot;) = Convert.ToInt64(s(&quot;ExpectedQty&quot;))&#xA;        rw(&quot;ErpPONumber&quot;) = Convert.ToString(s(&quot;PONumber&quot;))&#xA;        rw(&quot;Product&quot;) = Convert.ToString(s(&quot;Product&quot;))&#xA;    Else&#xA;        rw(&quot;ErpExpectedQty&quot;) = DBNull.Value&#xA;        rw(&quot;ErpPONumber&quot;) = &quot;&quot;&#xA;        rw(&quot;Product&quot;) = &quot;&quot;&#xA;        status = &quot;NO_ERP_SHIPMENT&quot;&#xA;    End If&#xA;&#xA;    If status &lt;&gt; &quot;MATCHED&quot; Then unmatched += 1&#xA;    rw(&quot;MatchStatus&quot;) = status&#xA;    dt.Rows.Add(rw)&#xA;Next&#xA;&#xA;out_dtJoined = dt&#xA;out_Summary = String.Format(&quot;{0} rows joined, {1} unmatched&quot;, dt.Rows.Count, unmatched)"><ui:InvokeCode.Arguments><scg:Dictionary x:TypeArguments="x:String, Argument"><InArgument x:TypeArguments="sd:DataTable" x:Key="in_dtChain">[in_dtChain]</InArgument><InArgument x:TypeArguments="sd:DataTable" x:Key="in_dtShipments">[in_dtShipments]</InArgument><InArgument x:TypeArguments="sd:DataTable" x:Key="in_dtErpEvents">[in_dtErpEvents]</InArgument><InArgument x:TypeArguments="sd:DataTable" x:Key="in_dtSequence">[in_dtSequence]</InArgument><OutArgument x:TypeArguments="sd:DataTable" x:Key="out_dtJoined">[out_dtJoined]</OutArgument><OutArgument x:TypeArguments="x:String" x:Key="out_Summary">[summary]</OutArgument></scg:Dictionary></ui:InvokeCode.Arguments></ui:InvokeCode><ui:LogMessage DisplayName="Log - [MAP]" Level="Info" Message="[&quot;[MAP] &quot; &amp; summary]" /></Sequence>
+</Activity>

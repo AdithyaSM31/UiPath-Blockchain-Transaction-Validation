@@ -1,0 +1,149 @@
+{
+  "name": "BlockchainLogisticsValidator",
+  "projectId": "d0db0341-73d4-46ee-9f03-fb193361625f",
+  "description": "UiPath RPA bot that validates blockchain transaction records against enterprise logistics data, producing anomaly alerts, styled reports and a tamper-evident audit trail.",
+  "main": "Main.xaml",
+  "dependencies": {
+    "UiPath.Excel.Activities": "[3.4.1]",
+    "UiPath.Form.Activities": "[25.10.2]",
+    "UiPath.Mail.Activities": "[2.7.12]",
+    "UiPath.System.Activities": "[26.2.7]",
+    "UiPath.Testing.Activities": "[25.10.1]",
+    "UiPath.UIAutomation.Activities": "[25.10.33]",
+    "UiPath.WebAPI.Activities": "[2.4.0]",
+    "UiPath.Word.Activities": "[2.4.1]"
+  },
+  "webServices": [],
+  "entitiesStores": [],
+  "schemaVersion": "4.0",
+  "studioVersion": "25.10.15.0",
+  "projectVersion": "1.0.93",
+  "runtimeOptions": {
+    "autoDispose": false,
+    "netFrameworkLazyLoading": false,
+    "isPausable": true,
+    "isAttended": false,
+    "requiresUserInteraction": true,
+    "supportsPersistence": false,
+    "workflowSerialization": "DataContract",
+    "excludedLoggedData": [
+      "Private:*",
+      "*password*"
+    ],
+    "executionType": "Workflow",
+    "readyForPiP": false,
+    "startsInPiP": false,
+    "mustRestoreAllDependencies": true,
+    "pipType": "ChildSession"
+  },
+  "designOptions": {
+    "projectProfile": "Developement",
+    "outputType": "Process",
+    "libraryOptions": {
+      "privateWorkflows": []
+    },
+    "processOptions": {
+      "ignoredFiles": []
+    },
+    "fileInfoCollection": [
+      {
+        "editingStatus": "InProgress",
+        "testCaseId": "dcfac593-48ca-4f86-8995-6198e79580a6",
+        "testCaseType": "TestCase",
+        "fileName": "Tests\\TC01_R1_TimestampCheck.xaml"
+      },
+      {
+        "editingStatus": "InProgress",
+        "testCaseId": "be2ebf61-bb75-4004-a6f2-d5020aa97393",
+        "testCaseType": "TestCase",
+        "fileName": "Tests\\TC02_R2_QuantityMatch.xaml"
+      },
+      {
+        "editingStatus": "InProgress",
+        "testCaseId": "fc90e746-9a7e-4a04-9530-8c9396174eb7",
+        "testCaseType": "TestCase",
+        "fileName": "Tests\\TC03_R3_AddressWhitelist.xaml"
+      },
+      {
+        "editingStatus": "InProgress",
+        "testCaseId": "4bc089d6-0fbe-493d-8f27-8b03ab78f1b6",
+        "testCaseType": "TestCase",
+        "fileName": "Tests\\TC04_R4_DuplicateDetection.xaml"
+      },
+      {
+        "editingStatus": "InProgress",
+        "testCaseId": "8b55bf02-510d-40e7-8851-fbf38d43eb6d",
+        "testCaseType": "TestCase",
+        "fileName": "Tests\\TC05_R5_SequenceValidation.xaml"
+      },
+      {
+        "editingStatus": "InProgress",
+        "testCaseId": "aabbf66d-009e-4f86-a241-54ee7b391cf4",
+        "testCaseType": "TestCase",
+        "fileName": "Tests\\TC06_R6_SmartContractEvent.xaml"
+      },
+      {
+        "editingStatus": "InProgress",
+        "testCaseId": "77b338d6-e9a7-457c-9529-d047f09bd296",
+        "testCaseType": "TestCase",
+        "fileName": "Tests\\TC07_AuditChain_TamperEvident.xaml"
+      }
+    ],
+    "saveToCloud": false
+  },
+  "expressionLanguage": "VisualBasic",
+  "entryPoints": [
+    {
+      "filePath": "Main.xaml",
+      "uniqueId": "6c3fa1de-9f04-4c0b-9c5e-7b2a1d5e4f10",
+      "input": [],
+      "output": []
+    },
+    {
+      "filePath": "Tests\\TC01_R1_TimestampCheck.xaml",
+      "uniqueId": "d60be95f-05db-5c3b-884b-20a198995934",
+      "input": [],
+      "output": []
+    },
+    {
+      "filePath": "Tests\\TC02_R2_QuantityMatch.xaml",
+      "uniqueId": "ad043026-d0e6-53ec-b2b9-dd4ba9d8df81",
+      "input": [],
+      "output": []
+    },
+    {
+      "filePath": "Tests\\TC03_R3_AddressWhitelist.xaml",
+      "uniqueId": "3084fa37-e638-5249-92a5-d14fc6558573",
+      "input": [],
+      "output": []
+    },
+    {
+      "filePath": "Tests\\TC04_R4_DuplicateDetection.xaml",
+      "uniqueId": "6c150ef5-8148-5c8e-8dba-848612123a68",
+      "input": [],
+      "output": []
+    },
+    {
+      "filePath": "Tests\\TC05_R5_SequenceValidation.xaml",
+      "uniqueId": "ed3a8d35-a7f3-5bd9-b093-74545b057abd",
+      "input": [],
+      "output": []
+    },
+    {
+      "filePath": "Tests\\TC06_R6_SmartContractEvent.xaml",
+      "uniqueId": "86afbefe-cfb3-5767-8093-4270c133038c",
+      "input": [],
+      "output": []
+    },
+    {
+      "filePath": "Tests\\TC07_AuditChain_TamperEvident.xaml",
+      "uniqueId": "faf8a3f2-9123-5503-b9ff-5e95f21b967c",
+      "input": [],
+      "output": []
+    }
+  ],
+  "isTemplate": false,
+  "templateProjectData": {},
+  "publishData": {},
+  "targetFramework": "Windows"
+}

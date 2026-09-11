@@ -1,0 +1,85 @@
+<Activity mc:Ignorable="sap sap2010" x:Class="R6_SmartContractEvent" mva:VisualBasic.Settings="{x:Null}"
+ xmlns="http://schemas.microsoft.com/netfx/2009/xaml/activities"
+ xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+ xmlns:mva="clr-namespace:Microsoft.VisualBasic.Activities;assembly=System.Activities"
+ xmlns:njl="clr-namespace:Newtonsoft.Json.Linq;assembly=Newtonsoft.Json"
+ xmlns:s="clr-namespace:System;assembly=System.Private.CoreLib"
+ xmlns:sap="http://schemas.microsoft.com/netfx/2009/xaml/activities/presentation"
+ xmlns:sap2010="http://schemas.microsoft.com/netfx/2010/xaml/activities/presentation"
+ xmlns:scg="clr-namespace:System.Collections.Generic;assembly=System.Private.CoreLib"
+ xmlns:sco="clr-namespace:System.Collections.ObjectModel;assembly=mscorlib"
+ xmlns:sd="clr-namespace:System.Data;assembly=System.Data.Common"
+ xmlns:ui="http://schemas.uipath.com/workflow/activities"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <x:Members>
+    <x:Property Name="io_dtResults" Type="InOutArgument(sd:DataTable)" />
+    <x:Property Name="in_Param1" Type="InArgument(x:String)" />
+    <x:Property Name="in_Param2" Type="InArgument(x:String)" />
+  </x:Members>
+
+  <TextExpression.NamespacesForImplementation>
+    <sco:Collection x:TypeArguments="x:String">
+      <x:String>System.Activities</x:String>
+      <x:String>System.Activities.Statements</x:String>
+      <x:String>System.Activities.Expressions</x:String>
+      <x:String>System.Activities.Validation</x:String>
+      <x:String>System.Activities.XamlIntegration</x:String>
+      <x:String>Microsoft.VisualBasic</x:String>
+      <x:String>Microsoft.VisualBasic.Activities</x:String>
+      <x:String>System</x:String>
+      <x:String>System.Collections</x:String>
+      <x:String>System.Collections.Generic</x:String>
+      <x:String>System.Collections.ObjectModel</x:String>
+      <x:String>System.Data</x:String>
+      <x:String>System.Diagnostics</x:String>
+      <x:String>System.Drawing</x:String>
+      <x:String>System.Globalization</x:String>
+      <x:String>System.IO</x:String>
+      <x:String>System.Linq</x:String>
+      <x:String>System.Net.Mail</x:String>
+      <x:String>System.Security.Cryptography</x:String>
+      <x:String>System.Text</x:String>
+      <x:String>System.Xml</x:String>
+      <x:String>System.Xml.Linq</x:String>
+      <x:String>Newtonsoft.Json</x:String>
+      <x:String>Newtonsoft.Json.Linq</x:String>
+      <x:String>UiPath.Core</x:String>
+      <x:String>UiPath.Core.Activities</x:String>
+      <x:String>System.Windows.Markup</x:String>
+    </sco:Collection>
+  </TextExpression.NamespacesForImplementation>
+  <TextExpression.ReferencesForImplementation>
+    <sco:Collection x:TypeArguments="AssemblyReference">
+      <AssemblyReference>System.Activities</AssemblyReference>
+      <AssemblyReference>Microsoft.VisualBasic</AssemblyReference>
+      <AssemblyReference>System.Private.CoreLib</AssemblyReference>
+      <AssemblyReference>mscorlib</AssemblyReference>
+      <AssemblyReference>System.Data</AssemblyReference>
+      <AssemblyReference>System</AssemblyReference>
+      <AssemblyReference>System.Linq</AssemblyReference>
+      <AssemblyReference>System.Data.Common</AssemblyReference>
+      <AssemblyReference>System.Drawing</AssemblyReference>
+      <AssemblyReference>System.Drawing.Primitives</AssemblyReference>
+      <AssemblyReference>System.Drawing.Common</AssemblyReference>
+      <AssemblyReference>System.Core</AssemblyReference>
+      <AssemblyReference>System.Runtime</AssemblyReference>
+      <AssemblyReference>System.Security.Cryptography</AssemblyReference>
+      <AssemblyReference>System.Xml</AssemblyReference>
+      <AssemblyReference>System.Xml.Linq</AssemblyReference>
+      <AssemblyReference>PresentationFramework</AssemblyReference>
+      <AssemblyReference>WindowsBase</AssemblyReference>
+      <AssemblyReference>PresentationCore</AssemblyReference>
+      <AssemblyReference>System.Xaml</AssemblyReference>
+      <AssemblyReference>Newtonsoft.Json</AssemblyReference>
+      <AssemblyReference>UiPath.System.Activities</AssemblyReference>
+      <AssemblyReference>UiPath.UiAutomation.Activities</AssemblyReference>
+      <AssemblyReference>UiPath.Excel.Activities</AssemblyReference>
+      <AssemblyReference>UiPath.Excel</AssemblyReference>
+      <AssemblyReference>UiPath.Mail.Activities</AssemblyReference>
+      <AssemblyReference>UiPath.Web.Activities</AssemblyReference>
+      <AssemblyReference>System.Data.DataSetExtensions</AssemblyReference>
+      <AssemblyReference>System.Net.Mail</AssemblyReference>
+    </sco:Collection>
+  </TextExpression.ReferencesForImplementation>
+  <Sequence DisplayName="R6 - Required smart contract event"><Sequence.Variables><Variable x:TypeArguments="x:String" Name="summary" /></Sequence.Variables><ui:InvokeCode DisplayName="Invoke Code - R6 - Required smart contract event" Language="VBNet" Code="' Every shipment must emit the milestone(s) named in Param1, matched by function&#xA;' selector during extraction. A missing event has no row of its own, so the finding&#xA;' is attached to the shipment's latest transaction - the point at which the chain of&#xA;' custody is left open.&#xA;Dim required As New List(Of String)&#xA;For Each p As String In in_Param1.Split(&quot;,&quot;c)&#xA;    If p.Trim() &lt;&gt; &quot;&quot; Then required.Add(p.Trim())&#xA;Next&#xA;&#xA;Dim byShipment As New Dictionary(Of String, List(Of DataRow))(StringComparer.OrdinalIgnoreCase)&#xA;For Each r As DataRow In io_dtResults.Rows&#xA;    Dim sid As String = Convert.ToString(r(&quot;ShipmentID&quot;))&#xA;    If Not byShipment.ContainsKey(sid) Then byShipment(sid) = New List(Of DataRow)&#xA;    byShipment(sid).Add(r)&#xA;    r(&quot;R6_Status&quot;) = &quot;PASS&quot;&#xA;    r(&quot;R6_Detail&quot;) = &quot;required event(s) present: &quot; &amp; String.Join(&quot;, &quot;, required)&#xA;Next&#xA;&#xA;Dim nFail As Integer = 0&#xA;&#xA;For Each kv As KeyValuePair(Of String, List(Of DataRow)) In byShipment&#xA;    Dim present As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)&#xA;    For Each r As DataRow In kv.Value&#xA;        present.Add(Convert.ToString(r(&quot;EventName&quot;)))&#xA;    Next&#xA;&#xA;    Dim missing As New List(Of String)&#xA;    For Each req As String In required&#xA;        If Not present.Contains(req) Then missing.Add(req)&#xA;    Next&#xA;&#xA;    If missing.Count &gt; 0 Then&#xA;        Dim last As DataRow = kv.Value(0)&#xA;        For Each r As DataRow In kv.Value&#xA;            If Convert.ToDateTime(r(&quot;ChainTimestampUtc&quot;)) &gt; Convert.ToDateTime(last(&quot;ChainTimestampUtc&quot;)) Then last = r&#xA;        Next&#xA;        last(&quot;R6_Status&quot;) = &quot;FAIL&quot;&#xA;        last(&quot;R6_Detail&quot;) = String.Format(&quot;{0} never emitted {1} - chain of custody incomplete after {2}&quot;, _&#xA;            kv.Key, String.Join(&quot;, &quot;, missing), Convert.ToString(last(&quot;EventName&quot;)))&#xA;        nFail += 1&#xA;    End If&#xA;Next&#xA;&#xA;out_Summary = String.Format(&quot;smart contract event: {0} shipment(s) missing {1}&quot;, nFail, String.Join(&quot;, &quot;, required))"><ui:InvokeCode.Arguments><scg:Dictionary x:TypeArguments="x:String, Argument"><InOutArgument x:TypeArguments="sd:DataTable" x:Key="io_dtResults">[io_dtResults]</InOutArgument><InArgument x:TypeArguments="x:String" x:Key="in_Param1">[in_Param1]</InArgument><InArgument x:TypeArguments="x:String" x:Key="in_Param2">[in_Param2]</InArgument><OutArgument x:TypeArguments="x:String" x:Key="out_Summary">[summary]</OutArgument></scg:Dictionary></ui:InvokeCode.Arguments></ui:InvokeCode><ui:LogMessage DisplayName="Log - [R6]" Level="Info" Message="[&quot;[R6] &quot; &amp; summary]" /></Sequence>
+</Activity>

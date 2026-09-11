@@ -1,0 +1,85 @@
+<Activity mc:Ignorable="sap sap2010" x:Class="R2_QuantityMatch" mva:VisualBasic.Settings="{x:Null}"
+ xmlns="http://schemas.microsoft.com/netfx/2009/xaml/activities"
+ xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+ xmlns:mva="clr-namespace:Microsoft.VisualBasic.Activities;assembly=System.Activities"
+ xmlns:njl="clr-namespace:Newtonsoft.Json.Linq;assembly=Newtonsoft.Json"
+ xmlns:s="clr-namespace:System;assembly=System.Private.CoreLib"
+ xmlns:sap="http://schemas.microsoft.com/netfx/2009/xaml/activities/presentation"
+ xmlns:sap2010="http://schemas.microsoft.com/netfx/2010/xaml/activities/presentation"
+ xmlns:scg="clr-namespace:System.Collections.Generic;assembly=System.Private.CoreLib"
+ xmlns:sco="clr-namespace:System.Collections.ObjectModel;assembly=mscorlib"
+ xmlns:sd="clr-namespace:System.Data;assembly=System.Data.Common"
+ xmlns:ui="http://schemas.uipath.com/workflow/activities"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <x:Members>
+    <x:Property Name="io_dtResults" Type="InOutArgument(sd:DataTable)" />
+    <x:Property Name="in_Param1" Type="InArgument(x:String)" />
+    <x:Property Name="in_Param2" Type="InArgument(x:String)" />
+  </x:Members>
+
+  <TextExpression.NamespacesForImplementation>
+    <sco:Collection x:TypeArguments="x:String">
+      <x:String>System.Activities</x:String>
+      <x:String>System.Activities.Statements</x:String>
+      <x:String>System.Activities.Expressions</x:String>
+      <x:String>System.Activities.Validation</x:String>
+      <x:String>System.Activities.XamlIntegration</x:String>
+      <x:String>Microsoft.VisualBasic</x:String>
+      <x:String>Microsoft.VisualBasic.Activities</x:String>
+      <x:String>System</x:String>
+      <x:String>System.Collections</x:String>
+      <x:String>System.Collections.Generic</x:String>
+      <x:String>System.Collections.ObjectModel</x:String>
+      <x:String>System.Data</x:String>
+      <x:String>System.Diagnostics</x:String>
+      <x:String>System.Drawing</x:String>
+      <x:String>System.Globalization</x:String>
+      <x:String>System.IO</x:String>
+      <x:String>System.Linq</x:String>
+      <x:String>System.Net.Mail</x:String>
+      <x:String>System.Security.Cryptography</x:String>
+      <x:String>System.Text</x:String>
+      <x:String>System.Xml</x:String>
+      <x:String>System.Xml.Linq</x:String>
+      <x:String>Newtonsoft.Json</x:String>
+      <x:String>Newtonsoft.Json.Linq</x:String>
+      <x:String>UiPath.Core</x:String>
+      <x:String>UiPath.Core.Activities</x:String>
+      <x:String>System.Windows.Markup</x:String>
+    </sco:Collection>
+  </TextExpression.NamespacesForImplementation>
+  <TextExpression.ReferencesForImplementation>
+    <sco:Collection x:TypeArguments="AssemblyReference">
+      <AssemblyReference>System.Activities</AssemblyReference>
+      <AssemblyReference>Microsoft.VisualBasic</AssemblyReference>
+      <AssemblyReference>System.Private.CoreLib</AssemblyReference>
+      <AssemblyReference>mscorlib</AssemblyReference>
+      <AssemblyReference>System.Data</AssemblyReference>
+      <AssemblyReference>System</AssemblyReference>
+      <AssemblyReference>System.Linq</AssemblyReference>
+      <AssemblyReference>System.Data.Common</AssemblyReference>
+      <AssemblyReference>System.Drawing</AssemblyReference>
+      <AssemblyReference>System.Drawing.Primitives</AssemblyReference>
+      <AssemblyReference>System.Drawing.Common</AssemblyReference>
+      <AssemblyReference>System.Core</AssemblyReference>
+      <AssemblyReference>System.Runtime</AssemblyReference>
+      <AssemblyReference>System.Security.Cryptography</AssemblyReference>
+      <AssemblyReference>System.Xml</AssemblyReference>
+      <AssemblyReference>System.Xml.Linq</AssemblyReference>
+      <AssemblyReference>PresentationFramework</AssemblyReference>
+      <AssemblyReference>WindowsBase</AssemblyReference>
+      <AssemblyReference>PresentationCore</AssemblyReference>
+      <AssemblyReference>System.Xaml</AssemblyReference>
+      <AssemblyReference>Newtonsoft.Json</AssemblyReference>
+      <AssemblyReference>UiPath.System.Activities</AssemblyReference>
+      <AssemblyReference>UiPath.UiAutomation.Activities</AssemblyReference>
+      <AssemblyReference>UiPath.Excel.Activities</AssemblyReference>
+      <AssemblyReference>UiPath.Excel</AssemblyReference>
+      <AssemblyReference>UiPath.Mail.Activities</AssemblyReference>
+      <AssemblyReference>UiPath.Web.Activities</AssemblyReference>
+      <AssemblyReference>System.Data.DataSetExtensions</AssemblyReference>
+      <AssemblyReference>System.Net.Mail</AssemblyReference>
+    </sco:Collection>
+  </TextExpression.ReferencesForImplementation>
+  <Sequence DisplayName="R2 - Quantity match"><Sequence.Variables><Variable x:TypeArguments="x:String" Name="summary" /></Sequence.Variables><ui:InvokeCode DisplayName="Invoke Code - R2 - Quantity match" Language="VBNet" Code="' On-chain quantity against the purchase-order quantity. Param1 is the permitted&#xA;' absolute difference in units, so a tolerance can be granted without code changes.&#xA;Dim tol As Long = 0&#xA;Long.TryParse(in_Param1, tol)&#xA;&#xA;Dim nFail As Integer = 0, nSkip As Integer = 0&#xA;&#xA;For Each r As DataRow In io_dtResults.Rows&#xA;    If IsDBNull(r(&quot;ErpExpectedQty&quot;)) Then&#xA;        r(&quot;R2_Status&quot;) = &quot;SKIPPED&quot;&#xA;        r(&quot;R2_Detail&quot;) = &quot;No ERP purchase-order quantity for this shipment&quot;&#xA;        nSkip += 1&#xA;        Continue For&#xA;    End If&#xA;&#xA;    Dim onChain As Long = Convert.ToInt64(r(&quot;OnChainQty&quot;))&#xA;    Dim expected As Long = Convert.ToInt64(r(&quot;ErpExpectedQty&quot;))&#xA;    Dim diff As Long = Math.Abs(onChain - expected)&#xA;&#xA;    If diff &lt;= tol Then&#xA;        r(&quot;R2_Status&quot;) = &quot;PASS&quot;&#xA;        r(&quot;R2_Detail&quot;) = String.Format(&quot;on-chain {0} = PO {1}&quot;, onChain, expected)&#xA;    Else&#xA;        r(&quot;R2_Status&quot;) = &quot;FAIL&quot;&#xA;        r(&quot;R2_Detail&quot;) = String.Format(&quot;on-chain {0} against PO {1} for {2} - shortfall of {3} unit(s)&quot;, _&#xA;            onChain, expected, Convert.ToString(r(&quot;PONumber&quot;)), diff)&#xA;        nFail += 1&#xA;    End If&#xA;Next&#xA;&#xA;out_Summary = String.Format(&quot;quantity match: {0} fail, {1} skipped (tolerance {2})&quot;, nFail, nSkip, tol)"><ui:InvokeCode.Arguments><scg:Dictionary x:TypeArguments="x:String, Argument"><InOutArgument x:TypeArguments="sd:DataTable" x:Key="io_dtResults">[io_dtResults]</InOutArgument><InArgument x:TypeArguments="x:String" x:Key="in_Param1">[in_Param1]</InArgument><InArgument x:TypeArguments="x:String" x:Key="in_Param2">[in_Param2]</InArgument><OutArgument x:TypeArguments="x:String" x:Key="out_Summary">[summary]</OutArgument></scg:Dictionary></ui:InvokeCode.Arguments></ui:InvokeCode><ui:LogMessage DisplayName="Log - [R2]" Level="Info" Message="[&quot;[R2] &quot; &amp; summary]" /></Sequence>
+</Activity>

@@ -1,0 +1,85 @@
+<Activity mc:Ignorable="sap sap2010" x:Class="Dispatcher" mva:VisualBasic.Settings="{x:Null}"
+ xmlns="http://schemas.microsoft.com/netfx/2009/xaml/activities"
+ xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+ xmlns:mva="clr-namespace:Microsoft.VisualBasic.Activities;assembly=System.Activities"
+ xmlns:njl="clr-namespace:Newtonsoft.Json.Linq;assembly=Newtonsoft.Json"
+ xmlns:s="clr-namespace:System;assembly=System.Private.CoreLib"
+ xmlns:sap="http://schemas.microsoft.com/netfx/2009/xaml/activities/presentation"
+ xmlns:sap2010="http://schemas.microsoft.com/netfx/2010/xaml/activities/presentation"
+ xmlns:scg="clr-namespace:System.Collections.Generic;assembly=System.Private.CoreLib"
+ xmlns:sco="clr-namespace:System.Collections.ObjectModel;assembly=mscorlib"
+ xmlns:sd="clr-namespace:System.Data;assembly=System.Data.Common"
+ xmlns:ui="http://schemas.uipath.com/workflow/activities"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <x:Members>
+    <x:Property Name="in_Config" Type="InArgument(scg:Dictionary(x:String, x:Object))" />
+    <x:Property Name="in_dtJoined" Type="InArgument(sd:DataTable)" />
+    <x:Property Name="out_ItemsQueued" Type="OutArgument(x:Int32)" />
+  </x:Members>
+
+  <TextExpression.NamespacesForImplementation>
+    <sco:Collection x:TypeArguments="x:String">
+      <x:String>System.Activities</x:String>
+      <x:String>System.Activities.Statements</x:String>
+      <x:String>System.Activities.Expressions</x:String>
+      <x:String>System.Activities.Validation</x:String>
+      <x:String>System.Activities.XamlIntegration</x:String>
+      <x:String>Microsoft.VisualBasic</x:String>
+      <x:String>Microsoft.VisualBasic.Activities</x:String>
+      <x:String>System</x:String>
+      <x:String>System.Collections</x:String>
+      <x:String>System.Collections.Generic</x:String>
+      <x:String>System.Collections.ObjectModel</x:String>
+      <x:String>System.Data</x:String>
+      <x:String>System.Diagnostics</x:String>
+      <x:String>System.Drawing</x:String>
+      <x:String>System.Globalization</x:String>
+      <x:String>System.IO</x:String>
+      <x:String>System.Linq</x:String>
+      <x:String>System.Net.Mail</x:String>
+      <x:String>System.Security.Cryptography</x:String>
+      <x:String>System.Text</x:String>
+      <x:String>System.Xml</x:String>
+      <x:String>System.Xml.Linq</x:String>
+      <x:String>Newtonsoft.Json</x:String>
+      <x:String>Newtonsoft.Json.Linq</x:String>
+      <x:String>UiPath.Core</x:String>
+      <x:String>UiPath.Core.Activities</x:String>
+      <x:String>System.Windows.Markup</x:String>
+    </sco:Collection>
+  </TextExpression.NamespacesForImplementation>
+  <TextExpression.ReferencesForImplementation>
+    <sco:Collection x:TypeArguments="AssemblyReference">
+      <AssemblyReference>System.Activities</AssemblyReference>
+      <AssemblyReference>Microsoft.VisualBasic</AssemblyReference>
+      <AssemblyReference>System.Private.CoreLib</AssemblyReference>
+      <AssemblyReference>mscorlib</AssemblyReference>
+      <AssemblyReference>System.Data</AssemblyReference>
+      <AssemblyReference>System</AssemblyReference>
+      <AssemblyReference>System.Linq</AssemblyReference>
+      <AssemblyReference>System.Data.Common</AssemblyReference>
+      <AssemblyReference>System.Drawing</AssemblyReference>
+      <AssemblyReference>System.Drawing.Primitives</AssemblyReference>
+      <AssemblyReference>System.Drawing.Common</AssemblyReference>
+      <AssemblyReference>System.Core</AssemblyReference>
+      <AssemblyReference>System.Runtime</AssemblyReference>
+      <AssemblyReference>System.Security.Cryptography</AssemblyReference>
+      <AssemblyReference>System.Xml</AssemblyReference>
+      <AssemblyReference>System.Xml.Linq</AssemblyReference>
+      <AssemblyReference>PresentationFramework</AssemblyReference>
+      <AssemblyReference>WindowsBase</AssemblyReference>
+      <AssemblyReference>PresentationCore</AssemblyReference>
+      <AssemblyReference>System.Xaml</AssemblyReference>
+      <AssemblyReference>Newtonsoft.Json</AssemblyReference>
+      <AssemblyReference>UiPath.System.Activities</AssemblyReference>
+      <AssemblyReference>UiPath.UiAutomation.Activities</AssemblyReference>
+      <AssemblyReference>UiPath.Excel.Activities</AssemblyReference>
+      <AssemblyReference>UiPath.Excel</AssemblyReference>
+      <AssemblyReference>UiPath.Mail.Activities</AssemblyReference>
+      <AssemblyReference>UiPath.Web.Activities</AssemblyReference>
+      <AssemblyReference>System.Data.DataSetExtensions</AssemblyReference>
+      <AssemblyReference>System.Net.Mail</AssemblyReference>
+    </sco:Collection>
+  </TextExpression.ReferencesForImplementation>
+  <Sequence DisplayName="Dispatcher - split the run into per-shipment queue items"><Sequence.Variables><Variable x:TypeArguments="sd:DataTable" Name="dtPayloads" /><Variable x:TypeArguments="x:String" Name="summary" /><Variable x:TypeArguments="scg:Dictionary(x:String, x:Object)" Name="itemInfo" /></Sequence.Variables><ui:InvokeCode DisplayName="Invoke Code - group transactions by shipment" Language="VBNet" Code="' Group the joined rows by shipment and serialise each group into one queue payload.&#xA;Dim byShipment As New Dictionary(Of String, JArray)(StringComparer.OrdinalIgnoreCase)&#xA;Dim colNames As New List(Of String)&#xA;For Each c As DataColumn In in_dtJoined.Columns&#xA;    colNames.Add(c.ColumnName)&#xA;Next&#xA;&#xA;For Each r As DataRow In in_dtJoined.Rows&#xA;    Dim sid As String = Convert.ToString(r(&quot;ShipmentID&quot;))&#xA;    If Not byShipment.ContainsKey(sid) Then byShipment(sid) = New JArray()&#xA;    Dim o As New JObject()&#xA;    For Each cn As String In colNames&#xA;        If IsDBNull(r(cn)) Then&#xA;            o(cn) = Nothing&#xA;        ElseIf TypeOf r(cn) Is DateTime Then&#xA;            o(cn) = Convert.ToDateTime(r(cn)).ToString(&quot;o&quot;, CultureInfo.InvariantCulture)&#xA;        Else&#xA;            o(cn) = Convert.ToString(r(cn))&#xA;        End If&#xA;    Next&#xA;    byShipment(sid).Add(o)&#xA;Next&#xA;&#xA;' One row per shipment: the queue payload plus the metadata the performer needs.&#xA;Dim dt As New DataTable(&quot;QueuePayloads&quot;)&#xA;dt.Columns.Add(&quot;Reference&quot;, GetType(String))&#xA;dt.Columns.Add(&quot;ShipmentID&quot;, GetType(String))&#xA;dt.Columns.Add(&quot;EventCount&quot;, GetType(Int32))&#xA;dt.Columns.Add(&quot;EventsJson&quot;, GetType(String))&#xA;&#xA;Dim runId As String = Convert.ToString(in_Config(&quot;RunId&quot;))&#xA;For Each kv As KeyValuePair(Of String, JArray) In byShipment&#xA;    dt.Rows.Add(kv.Key &amp; &quot;|&quot; &amp; runId, kv.Key, kv.Value.Count, kv.Value.ToString(Newtonsoft.Json.Formatting.None))&#xA;Next&#xA;&#xA;out_dtPayloads = dt&#xA;out_Summary = String.Format(&quot;{0} shipment payload(s) prepared from {1} transaction(s)&quot;, _&#xA;    dt.Rows.Count, in_dtJoined.Rows.Count)"><ui:InvokeCode.Arguments><scg:Dictionary x:TypeArguments="x:String, Argument"><InArgument x:TypeArguments="scg:Dictionary(x:String, x:Object)" x:Key="in_Config">[in_Config]</InArgument><InArgument x:TypeArguments="sd:DataTable" x:Key="in_dtJoined">[in_dtJoined]</InArgument><OutArgument x:TypeArguments="sd:DataTable" x:Key="out_dtPayloads">[dtPayloads]</OutArgument><OutArgument x:TypeArguments="x:String" x:Key="out_Summary">[summary]</OutArgument></scg:Dictionary></ui:InvokeCode.Arguments></ui:InvokeCode><ui:LogMessage DisplayName="Log - [DISPATCH]" Level="Info" Message="[&quot;[DISPATCH] &quot; &amp; summary]" /><If DisplayName="If - Orchestrator or dry run" Condition="[Convert.ToString(in_Config(&quot;QueueMode&quot;)).Trim().ToUpperInvariant() = &quot;ORCHESTRATOR&quot;]"><If.Then><Sequence DisplayName="Push to Orchestrator"><ui:ForEachRow DisplayName="For Each Row - shipment payloads" DataTable="[dtPayloads]"><ui:ForEachRow.Body><ActivityAction x:TypeArguments="sd:DataRow"><ActivityAction.Argument><DelegateInArgument x:TypeArguments="sd:DataRow" Name="CurrentPayload" /></ActivityAction.Argument><Sequence DisplayName="Queue one shipment"><Sequence DisplayName="Enqueue this shipment"><ui:AddQueueItem DisplayName="Add Queue Item" QueueType="[Convert.ToString(in_Config(&quot;QueueName&quot;))]" Reference="[Convert.ToString(CurrentPayload(&quot;Reference&quot;))]"><ui:AddQueueItem.ItemInformation><scg:Dictionary x:TypeArguments="x:String, InArgument"><InArgument x:TypeArguments="x:String" x:Key="ShipmentID">[Convert.ToString(CurrentPayload(&quot;ShipmentID&quot;))]</InArgument><InArgument x:TypeArguments="x:String" x:Key="EventCount">[Convert.ToString(CurrentPayload(&quot;EventCount&quot;))]</InArgument><InArgument x:TypeArguments="x:String" x:Key="EventsJson">[Convert.ToString(CurrentPayload(&quot;EventsJson&quot;))]</InArgument><InArgument x:TypeArguments="x:String" x:Key="RunId">[Convert.ToString(in_Config(&quot;RunId&quot;))]</InArgument></scg:Dictionary></ui:AddQueueItem.ItemInformation></ui:AddQueueItem></Sequence></Sequence></ActivityAction></ui:ForEachRow.Body></ui:ForEachRow><ui:LogMessage DisplayName="Log - [DISPATCH]" Level="Info" Message="[&quot;[DISPATCH] &quot; &amp; dtPayloads.Rows.Count.ToString() &amp; &quot; item(s) added to BlockchainValidationQueue&quot;]" /></Sequence></If.Then><If.Else><Sequence DisplayName="Dry run"><ui:InvokeCode DisplayName="Invoke Code - write payloads to disk" Language="VBNet" Code="' Write what would have been queued, so the split can be inspected without a tenant.&#xA;Dim folder As String = Path.Combine(Convert.ToString(in_Config(&quot;ReportsFolder&quot;)), &quot;QueueDryRun&quot;)&#xA;Directory.CreateDirectory(folder)&#xA;Dim arr As New JArray()&#xA;For Each r As DataRow In in_dtPayloads.Rows&#xA;    Dim o As New JObject()&#xA;    o(&quot;Reference&quot;) = Convert.ToString(r(&quot;Reference&quot;))&#xA;    o(&quot;ShipmentID&quot;) = Convert.ToString(r(&quot;ShipmentID&quot;))&#xA;    o(&quot;EventCount&quot;) = Convert.ToInt32(r(&quot;EventCount&quot;))&#xA;    o(&quot;EventsJson&quot;) = Convert.ToString(r(&quot;EventsJson&quot;))&#xA;    arr.Add(o)&#xA;Next&#xA;Dim outFile As String = Path.Combine(folder, &quot;queue_payloads_&quot; &amp; Convert.ToString(in_Config(&quot;RunId&quot;)) &amp; &quot;.json&quot;)&#xA;File.WriteAllText(outFile, arr.ToString(Newtonsoft.Json.Formatting.Indented), Encoding.UTF8)&#xA;out_Summary = String.Format(&quot;dry run: {0} payload(s) written to {1}&quot;, arr.Count, Path.GetFileName(outFile))"><ui:InvokeCode.Arguments><scg:Dictionary x:TypeArguments="x:String, Argument"><InArgument x:TypeArguments="scg:Dictionary(x:String, x:Object)" x:Key="in_Config">[in_Config]</InArgument><InArgument x:TypeArguments="sd:DataTable" x:Key="in_dtPayloads">[dtPayloads]</InArgument><OutArgument x:TypeArguments="x:String" x:Key="out_Summary">[summary]</OutArgument></scg:Dictionary></ui:InvokeCode.Arguments></ui:InvokeCode><ui:LogMessage DisplayName="Log - [DISPATCH]" Level="Info" Message="[&quot;[DISPATCH] &quot; &amp; summary]" /></Sequence></If.Else></If><Assign DisplayName="Assign - items queued"><Assign.To><OutArgument x:TypeArguments="x:Int32">[out_ItemsQueued]</OutArgument></Assign.To><Assign.Value><InArgument x:TypeArguments="x:Int32">[dtPayloads.Rows.Count]</InArgument></Assign.Value></Assign></Sequence>
+</Activity>

@@ -1,0 +1,90 @@
+<Activity mc:Ignorable="sap sap2010" x:Class="_07_Report_Excel" mva:VisualBasic.Settings="{x:Null}"
+ xmlns="http://schemas.microsoft.com/netfx/2009/xaml/activities"
+ xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+ xmlns:mva="clr-namespace:Microsoft.VisualBasic.Activities;assembly=System.Activities"
+ xmlns:njl="clr-namespace:Newtonsoft.Json.Linq;assembly=Newtonsoft.Json"
+ xmlns:s="clr-namespace:System;assembly=System.Private.CoreLib"
+ xmlns:sap="http://schemas.microsoft.com/netfx/2009/xaml/activities/presentation"
+ xmlns:sap2010="http://schemas.microsoft.com/netfx/2010/xaml/activities/presentation"
+ xmlns:scg="clr-namespace:System.Collections.Generic;assembly=System.Private.CoreLib"
+ xmlns:sco="clr-namespace:System.Collections.ObjectModel;assembly=mscorlib"
+ xmlns:sd="clr-namespace:System.Data;assembly=System.Data.Common"
+ xmlns:ui="http://schemas.uipath.com/workflow/activities"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <x:Members>
+    <x:Property Name="in_Config" Type="InArgument(scg:Dictionary(x:String, x:Object))" />
+    <x:Property Name="in_dtResults" Type="InArgument(sd:DataTable)" />
+    <x:Property Name="in_dtExceptions" Type="InArgument(sd:DataTable)" />
+    <x:Property Name="in_dtRules" Type="InArgument(sd:DataTable)" />
+    <x:Property Name="in_Stats" Type="InArgument(scg:Dictionary(x:String, x:Object))" />
+    <x:Property Name="out_ReportPath" Type="OutArgument(x:String)" />
+  </x:Members>
+
+  <TextExpression.NamespacesForImplementation>
+    <sco:Collection x:TypeArguments="x:String">
+      <x:String>System.Activities</x:String>
+      <x:String>System.Activities.Statements</x:String>
+      <x:String>System.Activities.Expressions</x:String>
+      <x:String>System.Activities.Validation</x:String>
+      <x:String>System.Activities.XamlIntegration</x:String>
+      <x:String>Microsoft.VisualBasic</x:String>
+      <x:String>Microsoft.VisualBasic.Activities</x:String>
+      <x:String>System</x:String>
+      <x:String>System.Collections</x:String>
+      <x:String>System.Collections.Generic</x:String>
+      <x:String>System.Collections.ObjectModel</x:String>
+      <x:String>System.Data</x:String>
+      <x:String>System.Diagnostics</x:String>
+      <x:String>System.Drawing</x:String>
+      <x:String>System.Globalization</x:String>
+      <x:String>System.IO</x:String>
+      <x:String>System.Linq</x:String>
+      <x:String>System.Net.Mail</x:String>
+      <x:String>System.Security.Cryptography</x:String>
+      <x:String>System.Text</x:String>
+      <x:String>System.Xml</x:String>
+      <x:String>System.Xml.Linq</x:String>
+      <x:String>Newtonsoft.Json</x:String>
+      <x:String>Newtonsoft.Json.Linq</x:String>
+      <x:String>UiPath.Core</x:String>
+      <x:String>UiPath.Core.Activities</x:String>
+      <x:String>System.Windows.Markup</x:String>
+      <x:String>ClosedXML.Excel</x:String>
+    </sco:Collection>
+  </TextExpression.NamespacesForImplementation>
+  <TextExpression.ReferencesForImplementation>
+    <sco:Collection x:TypeArguments="AssemblyReference">
+      <AssemblyReference>System.Activities</AssemblyReference>
+      <AssemblyReference>Microsoft.VisualBasic</AssemblyReference>
+      <AssemblyReference>System.Private.CoreLib</AssemblyReference>
+      <AssemblyReference>mscorlib</AssemblyReference>
+      <AssemblyReference>System.Data</AssemblyReference>
+      <AssemblyReference>System</AssemblyReference>
+      <AssemblyReference>System.Linq</AssemblyReference>
+      <AssemblyReference>System.Data.Common</AssemblyReference>
+      <AssemblyReference>System.Drawing</AssemblyReference>
+      <AssemblyReference>System.Drawing.Primitives</AssemblyReference>
+      <AssemblyReference>System.Drawing.Common</AssemblyReference>
+      <AssemblyReference>System.Core</AssemblyReference>
+      <AssemblyReference>System.Runtime</AssemblyReference>
+      <AssemblyReference>System.Security.Cryptography</AssemblyReference>
+      <AssemblyReference>System.Xml</AssemblyReference>
+      <AssemblyReference>System.Xml.Linq</AssemblyReference>
+      <AssemblyReference>PresentationFramework</AssemblyReference>
+      <AssemblyReference>WindowsBase</AssemblyReference>
+      <AssemblyReference>PresentationCore</AssemblyReference>
+      <AssemblyReference>System.Xaml</AssemblyReference>
+      <AssemblyReference>Newtonsoft.Json</AssemblyReference>
+      <AssemblyReference>UiPath.System.Activities</AssemblyReference>
+      <AssemblyReference>UiPath.UiAutomation.Activities</AssemblyReference>
+      <AssemblyReference>UiPath.Excel.Activities</AssemblyReference>
+      <AssemblyReference>UiPath.Excel</AssemblyReference>
+      <AssemblyReference>UiPath.Mail.Activities</AssemblyReference>
+      <AssemblyReference>UiPath.Web.Activities</AssemblyReference>
+      <AssemblyReference>System.Data.DataSetExtensions</AssemblyReference>
+      <AssemblyReference>System.Net.Mail</AssemblyReference>
+      <AssemblyReference>ClosedXML</AssemblyReference>
+    </sco:Collection>
+  </TextExpression.ReferencesForImplementation>
+  <Sequence DisplayName="07 - Generate styled Excel report"><Sequence.Variables><Variable x:TypeArguments="x:String" Name="summary" /></Sequence.Variables><ui:InvokeCode DisplayName="Invoke Code - build the workbook with ClosedXML" Language="VBNet" Code="Dim folder As String = Convert.ToString(in_Config(&quot;ReportsFolder&quot;))&#xA;Directory.CreateDirectory(folder)&#xA;Dim runId As String = Convert.ToString(in_Config(&quot;RunId&quot;))&#xA;Dim outPath As String = Path.Combine(folder, &quot;ValidationReport_&quot; &amp; runId &amp; &quot;.xlsx&quot;)&#xA;&#xA;Dim GREEN As XLColor = XLColor.FromHtml(&quot;#C6EFCE&quot;)&#xA;Dim RED As XLColor = XLColor.FromHtml(&quot;#FFC7CE&quot;)&#xA;Dim AMBER As XLColor = XLColor.FromHtml(&quot;#FFEB9C&quot;)&#xA;Dim HDR As XLColor = XLColor.FromHtml(&quot;#1F3864&quot;)&#xA;&#xA;Dim wb As New XLWorkbook()&#xA;&#xA;' ---------- Summary -------------------------------------------------------&#xA;Dim ws = wb.Worksheets.Add(&quot;Summary&quot;)&#xA;ws.Cell(1, 1).Value = &quot;Blockchain Transaction Validation Report&quot;&#xA;ws.Cell(1, 1).Style.Font.SetBold(True).Font.SetFontSize(16)&#xA;&#xA;Dim rows As New List(Of String())&#xA;rows.Add(New String() {&quot;Run ID&quot;, runId})&#xA;rows.Add(New String() {&quot;Bot identity&quot;, Convert.ToString(in_Config(&quot;BotIdentity&quot;))})&#xA;rows.Add(New String() {&quot;Machine&quot;, Convert.ToString(in_Config(&quot;MachineName&quot;))})&#xA;rows.Add(New String() {&quot;Generated (UTC)&quot;, DateTime.UtcNow.ToString(&quot;yyyy-MM-dd HH:mm:ss&quot;)})&#xA;rows.Add(New String() {&quot;Data source mode&quot;, Convert.ToString(in_Config(&quot;DataSourceMode&quot;))})&#xA;rows.Add(New String() {&quot;Chain ID&quot;, Convert.ToString(in_Config(&quot;ChainId&quot;))})&#xA;rows.Add(New String() {&quot;Contract audited&quot;, Convert.ToString(in_Config(&quot;ContractAddress&quot;))})&#xA;rows.Add(New String() {&quot;&quot;, &quot;&quot;})&#xA;rows.Add(New String() {&quot;Transactions validated&quot;, Convert.ToString(in_Stats(&quot;Total&quot;))})&#xA;rows.Add(New String() {&quot;Passed&quot;, Convert.ToString(in_Stats(&quot;Pass&quot;))})&#xA;rows.Add(New String() {&quot;Warnings&quot;, Convert.ToString(in_Stats(&quot;Warning&quot;))})&#xA;rows.Add(New String() {&quot;Failed&quot;, Convert.ToString(in_Stats(&quot;Fail&quot;))})&#xA;rows.Add(New String() {&quot;Pass rate (%)&quot;, Convert.ToString(in_Stats(&quot;PassPercent&quot;))})&#xA;rows.Add(New String() {&quot;Escalated to human review&quot;, Convert.ToString(in_Stats(&quot;Escalations&quot;))})&#xA;rows.Add(New String() {&quot;&quot;, &quot;&quot;})&#xA;rows.Add(New String() {&quot;Rule findings&quot;, Convert.ToString(in_Stats(&quot;RuleHitSummary&quot;))})&#xA;&#xA;Dim rIdx As Integer = 3&#xA;For Each kv As String() In rows&#xA;    ws.Cell(rIdx, 1).Value = kv(0)&#xA;    ws.Cell(rIdx, 1).Style.Font.SetBold(True)&#xA;    ws.Cell(rIdx, 2).Value = kv(1)&#xA;    rIdx += 1&#xA;Next&#xA;&#xA;' Colour the headline counters so the outcome reads at a glance.&#xA;ws.Cell(11, 2).Style.Fill.SetBackgroundColor(GREEN)&#xA;ws.Cell(12, 2).Style.Fill.SetBackgroundColor(AMBER)&#xA;ws.Cell(13, 2).Style.Fill.SetBackgroundColor(RED)&#xA;ws.Columns(1, 2).AdjustToContents()&#xA;&#xA;' ---------- Per-rule breakdown -------------------------------------------&#xA;Dim br As Integer = rIdx + 1&#xA;ws.Cell(br, 1).Value = &quot;Rule&quot;&#xA;ws.Cell(br, 2).Value = &quot;Name&quot;&#xA;ws.Cell(br, 3).Value = &quot;Enabled&quot;&#xA;ws.Cell(br, 4).Value = &quot;Severity&quot;&#xA;ws.Cell(br, 5).Value = &quot;Findings&quot;&#xA;For c As Integer = 1 To 5&#xA;    ws.Cell(br, c).Style.Font.SetBold(True).Font.SetFontColor(XLColor.White)&#xA;    ws.Cell(br, c).Style.Fill.SetBackgroundColor(HDR)&#xA;Next&#xA;Dim rr As Integer = br + 1&#xA;For Each rule As DataRow In in_dtRules.Rows&#xA;    Dim rid As String = Convert.ToString(rule(&quot;RuleID&quot;))&#xA;    ws.Cell(rr, 1).Value = rid&#xA;    ws.Cell(rr, 2).Value = Convert.ToString(rule(&quot;RuleName&quot;))&#xA;    ws.Cell(rr, 3).Value = Convert.ToString(rule(&quot;Enabled&quot;))&#xA;    ws.Cell(rr, 4).Value = Convert.ToString(rule(&quot;Severity&quot;))&#xA;    Dim hits As Integer = 0&#xA;    If in_Stats.ContainsKey(rid &amp; &quot;_Hits&quot;) Then hits = Convert.ToInt32(in_Stats(rid &amp; &quot;_Hits&quot;))&#xA;    ws.Cell(rr, 5).Value = hits&#xA;    If hits &gt; 0 Then ws.Cell(rr, 5).Style.Fill.SetBackgroundColor(AMBER)&#xA;    rr += 1&#xA;Next&#xA;ws.Columns(1, 5).AdjustToContents()&#xA;&#xA;' ---------- Detail sheets -------------------------------------------------&#xA;Dim sheets As New List(Of Object())&#xA;sheets.Add(New Object() {&quot;ValidationResults&quot;, in_dtResults})&#xA;sheets.Add(New Object() {&quot;Exceptions&quot;, in_dtExceptions})&#xA;&#xA;For Each spec As Object() In sheets&#xA;    Dim nm As String = Convert.ToString(spec(0))&#xA;    Dim src As DataTable = CType(spec(1), DataTable)&#xA;    Dim d = wb.Worksheets.Add(nm)&#xA;&#xA;    If src Is Nothing OrElse src.Rows.Count = 0 Then&#xA;        d.Cell(1, 1).Value = &quot;No rows&quot;&#xA;        Continue For&#xA;    End If&#xA;&#xA;    d.Cell(1, 1).InsertTable(src, nm &amp; &quot;Table&quot;, True)&#xA;&#xA;    Dim statusCol As Integer = src.Columns.IndexOf(&quot;ValidationStatus&quot;) + 1&#xA;    If statusCol &gt; 0 Then&#xA;        For i As Integer = 0 To src.Rows.Count - 1&#xA;            Dim st As String = Convert.ToString(src.Rows(i)(&quot;ValidationStatus&quot;))&#xA;            Dim cell = d.Cell(i + 2, statusCol)&#xA;            If st = &quot;PASS&quot; Then&#xA;                cell.Style.Fill.SetBackgroundColor(GREEN)&#xA;            ElseIf st = &quot;FAIL&quot; Then&#xA;                cell.Style.Fill.SetBackgroundColor(RED)&#xA;            ElseIf st = &quot;WARNING&quot; Then&#xA;                cell.Style.Fill.SetBackgroundColor(AMBER)&#xA;            End If&#xA;        Next&#xA;    End If&#xA;&#xA;    d.SheetView.FreezeRows(1)&#xA;    d.Columns().AdjustToContents()&#xA;Next&#xA;&#xA;wb.SaveAs(outPath)&#xA;&#xA;out_ReportPath = outPath&#xA;out_Summary = String.Format(&quot;report written: {0} ({1} results, {2} exceptions)&quot;, _&#xA;    Path.GetFileName(outPath), in_dtResults.Rows.Count, If(in_dtExceptions Is Nothing, 0, in_dtExceptions.Rows.Count))"><ui:InvokeCode.Arguments><scg:Dictionary x:TypeArguments="x:String, Argument"><InArgument x:TypeArguments="scg:Dictionary(x:String, x:Object)" x:Key="in_Config">[in_Config]</InArgument><InArgument x:TypeArguments="sd:DataTable" x:Key="in_dtResults">[in_dtResults]</InArgument><InArgument x:TypeArguments="sd:DataTable" x:Key="in_dtExceptions">[in_dtExceptions]</InArgument><InArgument x:TypeArguments="sd:DataTable" x:Key="in_dtRules">[in_dtRules]</InArgument><InArgument x:TypeArguments="scg:Dictionary(x:String, x:Object)" x:Key="in_Stats">[in_Stats]</InArgument><OutArgument x:TypeArguments="x:String" x:Key="out_ReportPath">[out_ReportPath]</OutArgument><OutArgument x:TypeArguments="x:String" x:Key="out_Summary">[summary]</OutArgument></scg:Dictionary></ui:InvokeCode.Arguments></ui:InvokeCode><ui:LogMessage DisplayName="Log - [REPORT]" Level="Info" Message="[&quot;[REPORT] &quot; &amp; summary]" /></Sequence>
+</Activity>

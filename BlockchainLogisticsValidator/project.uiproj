@@ -1,0 +1,6 @@
+{
+  "Name": "BlockchainLogisticsValidator",
+  "ProjectType": "Process",
+  "Description": "UiPath RPA bot that validates blockchain transaction records against enterprise logistics data, producing anomaly alerts, styled reports and a tamper-evident audit trail.",
+  "MainFile": "Main.xaml"
+}

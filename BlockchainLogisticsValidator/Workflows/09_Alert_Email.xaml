@@ -1,0 +1,88 @@
+<Activity mc:Ignorable="sap sap2010" x:Class="_09_Alert_Email" mva:VisualBasic.Settings="{x:Null}"
+ xmlns="http://schemas.microsoft.com/netfx/2009/xaml/activities"
+ xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+ xmlns:mva="clr-namespace:Microsoft.VisualBasic.Activities;assembly=System.Activities"
+ xmlns:njl="clr-namespace:Newtonsoft.Json.Linq;assembly=Newtonsoft.Json"
+ xmlns:s="clr-namespace:System;assembly=System.Private.CoreLib"
+ xmlns:sap="http://schemas.microsoft.com/netfx/2009/xaml/activities/presentation"
+ xmlns:sap2010="http://schemas.microsoft.com/netfx/2010/xaml/activities/presentation"
+ xmlns:scg="clr-namespace:System.Collections.Generic;assembly=System.Private.CoreLib"
+ xmlns:sco="clr-namespace:System.Collections.ObjectModel;assembly=mscorlib"
+ xmlns:sd="clr-namespace:System.Data;assembly=System.Data.Common"
+ xmlns:ui="http://schemas.uipath.com/workflow/activities"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <x:Members>
+    <x:Property Name="in_Config" Type="InArgument(scg:Dictionary(x:String, x:Object))" />
+    <x:Property Name="in_dtExceptions" Type="InArgument(sd:DataTable)" />
+    <x:Property Name="in_Stats" Type="InArgument(scg:Dictionary(x:String, x:Object))" />
+    <x:Property Name="in_ReportPath" Type="InArgument(x:String)" />
+    <x:Property Name="in_HeadHash" Type="InArgument(x:String)" />
+    <x:Property Name="out_AlertPath" Type="OutArgument(x:String)" />
+  </x:Members>
+
+  <TextExpression.NamespacesForImplementation>
+    <sco:Collection x:TypeArguments="x:String">
+      <x:String>System.Activities</x:String>
+      <x:String>System.Activities.Statements</x:String>
+      <x:String>System.Activities.Expressions</x:String>
+      <x:String>System.Activities.Validation</x:String>
+      <x:String>System.Activities.XamlIntegration</x:String>
+      <x:String>Microsoft.VisualBasic</x:String>
+      <x:String>Microsoft.VisualBasic.Activities</x:String>
+      <x:String>System</x:String>
+      <x:String>System.Collections</x:String>
+      <x:String>System.Collections.Generic</x:String>
+      <x:String>System.Collections.ObjectModel</x:String>
+      <x:String>System.Data</x:String>
+      <x:String>System.Diagnostics</x:String>
+      <x:String>System.Drawing</x:String>
+      <x:String>System.Globalization</x:String>
+      <x:String>System.IO</x:String>
+      <x:String>System.Linq</x:String>
+      <x:String>System.Net.Mail</x:String>
+      <x:String>System.Security.Cryptography</x:String>
+      <x:String>System.Text</x:String>
+      <x:String>System.Xml</x:String>
+      <x:String>System.Xml.Linq</x:String>
+      <x:String>Newtonsoft.Json</x:String>
+      <x:String>Newtonsoft.Json.Linq</x:String>
+      <x:String>UiPath.Core</x:String>
+      <x:String>UiPath.Core.Activities</x:String>
+      <x:String>System.Windows.Markup</x:String>
+    </sco:Collection>
+  </TextExpression.NamespacesForImplementation>
+  <TextExpression.ReferencesForImplementation>
+    <sco:Collection x:TypeArguments="AssemblyReference">
+      <AssemblyReference>System.Activities</AssemblyReference>
+      <AssemblyReference>Microsoft.VisualBasic</AssemblyReference>
+      <AssemblyReference>System.Private.CoreLib</AssemblyReference>
+      <AssemblyReference>mscorlib</AssemblyReference>
+      <AssemblyReference>System.Data</AssemblyReference>
+      <AssemblyReference>System</AssemblyReference>
+      <AssemblyReference>System.Linq</AssemblyReference>
+      <AssemblyReference>System.Data.Common</AssemblyReference>
+      <AssemblyReference>System.Drawing</AssemblyReference>
+      <AssemblyReference>System.Drawing.Primitives</AssemblyReference>
+      <AssemblyReference>System.Drawing.Common</AssemblyReference>
+      <AssemblyReference>System.Core</AssemblyReference>
+      <AssemblyReference>System.Runtime</AssemblyReference>
+      <AssemblyReference>System.Security.Cryptography</AssemblyReference>
+      <AssemblyReference>System.Xml</AssemblyReference>
+      <AssemblyReference>System.Xml.Linq</AssemblyReference>
+      <AssemblyReference>PresentationFramework</AssemblyReference>
+      <AssemblyReference>WindowsBase</AssemblyReference>
+      <AssemblyReference>PresentationCore</AssemblyReference>
+      <AssemblyReference>System.Xaml</AssemblyReference>
+      <AssemblyReference>Newtonsoft.Json</AssemblyReference>
+      <AssemblyReference>UiPath.System.Activities</AssemblyReference>
+      <AssemblyReference>UiPath.UiAutomation.Activities</AssemblyReference>
+      <AssemblyReference>UiPath.Excel.Activities</AssemblyReference>
+      <AssemblyReference>UiPath.Excel</AssemblyReference>
+      <AssemblyReference>UiPath.Mail.Activities</AssemblyReference>
+      <AssemblyReference>UiPath.Web.Activities</AssemblyReference>
+      <AssemblyReference>System.Data.DataSetExtensions</AssemblyReference>
+      <AssemblyReference>System.Net.Mail</AssemblyReference>
+    </sco:Collection>
+  </TextExpression.ReferencesForImplementation>
+  <Sequence DisplayName="09 - Compose and deliver anomaly alert"><Sequence.Variables><Variable x:TypeArguments="x:String" Name="subject" /><Variable x:TypeArguments="x:String" Name="htmlBody" /><Variable x:TypeArguments="x:Boolean" Name="shouldSend" /><Variable x:TypeArguments="x:String" Name="summary" /></Sequence.Variables><ui:InvokeCode DisplayName="Invoke Code - compose the alert" Language="VBNet" Code="' Compose the anomaly alert. AlertMode = EML writes a fully-formed RFC 5322 message to&#xA;' disk instead of sending it: the demo is identical, and no SMTP credentials have to&#xA;' live in a project folder that gets submitted or shared.&#xA;Dim total As Integer = Convert.ToInt32(in_Stats(&quot;Total&quot;))&#xA;Dim nFail As Integer = Convert.ToInt32(in_Stats(&quot;Fail&quot;))&#xA;Dim nWarn As Integer = Convert.ToInt32(in_Stats(&quot;Warning&quot;))&#xA;Dim nEsc As Integer = Convert.ToInt32(in_Stats(&quot;Escalations&quot;))&#xA;&#xA;Dim subject As String&#xA;If nFail &gt; 0 Then&#xA;    subject = String.Format(&quot;[ACTION REQUIRED] {0} blockchain validation failure(s) - {1}&quot;, nFail, Convert.ToString(in_Config(&quot;RunId&quot;)))&#xA;ElseIf nWarn &gt; 0 Then&#xA;    subject = String.Format(&quot;[REVIEW] {0} blockchain validation warning(s) - {1}&quot;, nWarn, Convert.ToString(in_Config(&quot;RunId&quot;)))&#xA;Else&#xA;    subject = String.Format(&quot;[OK] All {0} blockchain transactions validated - {1}&quot;, total, Convert.ToString(in_Config(&quot;RunId&quot;)))&#xA;End If&#xA;&#xA;Dim sb As New StringBuilder()&#xA;sb.AppendLine(&quot;&lt;html&gt;&lt;body style=&quot;&quot;font-family:Segoe UI,Arial,sans-serif;font-size:13px;color:#222&quot;&quot;&gt;&quot;)&#xA;sb.AppendLine(&quot;&lt;h2 style=&quot;&quot;color:#1F3864;margin-bottom:4px&quot;&quot;&gt;Blockchain Transaction Validation&lt;/h2&gt;&quot;)&#xA;sb.AppendLine(&quot;&lt;p style=&quot;&quot;color:#666;margin-top:0&quot;&quot;&gt;Run &quot; &amp; Convert.ToString(in_Config(&quot;RunId&quot;)) &amp; &quot; &amp;middot; bot &quot; &amp; Convert.ToString(in_Config(&quot;BotIdentity&quot;)) &amp; &quot; on &quot; &amp; Convert.ToString(in_Config(&quot;MachineName&quot;)) &amp; &quot;&lt;/p&gt;&quot;)&#xA;&#xA;sb.AppendLine(&quot;&lt;table cellpadding=&quot;&quot;6&quot;&quot; cellspacing=&quot;&quot;0&quot;&quot; style=&quot;&quot;border-collapse:collapse;margin:12px 0&quot;&quot;&gt;&quot;)&#xA;sb.AppendLine(&quot;&lt;tr&gt;&lt;td style=&quot;&quot;border:1px solid #ddd&quot;&quot;&gt;&lt;b&gt;Validated&lt;/b&gt;&lt;/td&gt;&lt;td style=&quot;&quot;border:1px solid #ddd&quot;&quot;&gt;&quot; &amp; total.ToString() &amp; &quot;&lt;/td&gt;&lt;/tr&gt;&quot;)&#xA;sb.AppendLine(&quot;&lt;tr&gt;&lt;td style=&quot;&quot;border:1px solid #ddd;background:#C6EFCE&quot;&quot;&gt;&lt;b&gt;Passed&lt;/b&gt;&lt;/td&gt;&lt;td style=&quot;&quot;border:1px solid #ddd&quot;&quot;&gt;&quot; &amp; Convert.ToString(in_Stats(&quot;Pass&quot;)) &amp; &quot; (&quot; &amp; Convert.ToString(in_Stats(&quot;PassPercent&quot;)) &amp; &quot;%)&lt;/td&gt;&lt;/tr&gt;&quot;)&#xA;sb.AppendLine(&quot;&lt;tr&gt;&lt;td style=&quot;&quot;border:1px solid #ddd;background:#FFEB9C&quot;&quot;&gt;&lt;b&gt;Warnings&lt;/b&gt;&lt;/td&gt;&lt;td style=&quot;&quot;border:1px solid #ddd&quot;&quot;&gt;&quot; &amp; nWarn.ToString() &amp; &quot;&lt;/td&gt;&lt;/tr&gt;&quot;)&#xA;sb.AppendLine(&quot;&lt;tr&gt;&lt;td style=&quot;&quot;border:1px solid #ddd;background:#FFC7CE&quot;&quot;&gt;&lt;b&gt;Failed&lt;/b&gt;&lt;/td&gt;&lt;td style=&quot;&quot;border:1px solid #ddd&quot;&quot;&gt;&quot; &amp; nFail.ToString() &amp; &quot;&lt;/td&gt;&lt;/tr&gt;&quot;)&#xA;sb.AppendLine(&quot;&lt;tr&gt;&lt;td style=&quot;&quot;border:1px solid #ddd&quot;&quot;&gt;&lt;b&gt;Escalated&lt;/b&gt;&lt;/td&gt;&lt;td style=&quot;&quot;border:1px solid #ddd&quot;&quot;&gt;&quot; &amp; nEsc.ToString() &amp; &quot;&lt;/td&gt;&lt;/tr&gt;&quot;)&#xA;sb.AppendLine(&quot;&lt;/table&gt;&quot;)&#xA;&#xA;If in_dtExceptions IsNot Nothing AndAlso in_dtExceptions.Rows.Count &gt; 0 Then&#xA;    sb.AppendLine(&quot;&lt;h3 style=&quot;&quot;color:#1F3864&quot;&quot;&gt;Findings&lt;/h3&gt;&quot;)&#xA;    sb.AppendLine(&quot;&lt;table cellpadding=&quot;&quot;6&quot;&quot; cellspacing=&quot;&quot;0&quot;&quot; style=&quot;&quot;border-collapse:collapse;font-size:12px&quot;&quot;&gt;&quot;)&#xA;    sb.AppendLine(&quot;&lt;tr style=&quot;&quot;background:#1F3864;color:#fff&quot;&quot;&gt;&lt;th style=&quot;&quot;border:1px solid #ddd&quot;&quot;&gt;Shipment&lt;/th&gt;&lt;th style=&quot;&quot;border:1px solid #ddd&quot;&quot;&gt;Event&lt;/th&gt;&lt;th style=&quot;&quot;border:1px solid #ddd&quot;&quot;&gt;Status&lt;/th&gt;&lt;th style=&quot;&quot;border:1px solid #ddd&quot;&quot;&gt;Severity&lt;/th&gt;&lt;th style=&quot;&quot;border:1px solid #ddd;text-align:left&quot;&quot;&gt;Reason&lt;/th&gt;&lt;/tr&gt;&quot;)&#xA;    For Each r As DataRow In in_dtExceptions.Rows&#xA;        Dim bg As String = &quot;#FFEB9C&quot;&#xA;        If Convert.ToString(r(&quot;ValidationStatus&quot;)) = &quot;FAIL&quot; Then bg = &quot;#FFC7CE&quot;&#xA;        sb.AppendLine(&quot;&lt;tr&gt;&quot; &amp; _&#xA;            &quot;&lt;td style=&quot;&quot;border:1px solid #ddd&quot;&quot;&gt;&quot; &amp; Convert.ToString(r(&quot;ShipmentID&quot;)) &amp; &quot;&lt;/td&gt;&quot; &amp; _&#xA;            &quot;&lt;td style=&quot;&quot;border:1px solid #ddd&quot;&quot;&gt;&quot; &amp; Convert.ToString(r(&quot;EventName&quot;)) &amp; &quot;&lt;/td&gt;&quot; &amp; _&#xA;            &quot;&lt;td style=&quot;&quot;border:1px solid #ddd;background:&quot; &amp; bg &amp; &quot;&quot;&quot;&gt;&quot; &amp; Convert.ToString(r(&quot;ValidationStatus&quot;)) &amp; &quot;&lt;/td&gt;&quot; &amp; _&#xA;            &quot;&lt;td style=&quot;&quot;border:1px solid #ddd&quot;&quot;&gt;&quot; &amp; Convert.ToString(r(&quot;Severity&quot;)) &amp; &quot;&lt;/td&gt;&quot; &amp; _&#xA;            &quot;&lt;td style=&quot;&quot;border:1px solid #ddd&quot;&quot;&gt;&quot; &amp; Convert.ToString(r(&quot;FailureReasons&quot;)) &amp; &quot;&lt;/td&gt;&lt;/tr&gt;&quot;)&#xA;    Next&#xA;    sb.AppendLine(&quot;&lt;/table&gt;&quot;)&#xA;Else&#xA;    sb.AppendLine(&quot;&lt;p&gt;No anomalies detected in this run.&lt;/p&gt;&quot;)&#xA;End If&#xA;&#xA;sb.AppendLine(&quot;&lt;p style=&quot;&quot;color:#666;font-size:11px;margin-top:18px&quot;&quot;&gt;Audit chain head: &quot; &amp; in_HeadHash &amp; &quot;&lt;br/&gt;Report: &quot; &amp; in_ReportPath &amp; &quot;&lt;/p&gt;&quot;)&#xA;sb.AppendLine(&quot;&lt;/body&gt;&lt;/html&gt;&quot;)&#xA;&#xA;Dim body As String = sb.ToString()&#xA;Dim mode As String = Convert.ToString(in_Config(&quot;AlertMode&quot;)).Trim().ToUpperInvariant()&#xA;Dim toList As String = Convert.ToString(in_Config(&quot;AlertTo&quot;)).Replace(&quot;;&quot;, &quot;, &quot;)&#xA;&#xA;Dim eml As New StringBuilder()&#xA;eml.AppendLine(&quot;From: &quot; &amp; Convert.ToString(in_Config(&quot;AlertFrom&quot;)))&#xA;eml.AppendLine(&quot;To: &quot; &amp; toList)&#xA;eml.AppendLine(&quot;Subject: &quot; &amp; subject)&#xA;eml.AppendLine(&quot;Date: &quot; &amp; DateTime.UtcNow.ToString(&quot;r&quot;, CultureInfo.InvariantCulture))&#xA;eml.AppendLine(&quot;X-Generated-By: &quot; &amp; Convert.ToString(in_Config(&quot;BotIdentity&quot;)))&#xA;eml.AppendLine(&quot;MIME-Version: 1.0&quot;)&#xA;eml.AppendLine(&quot;Content-Type: text/html; charset=utf-8&quot;)&#xA;eml.AppendLine()&#xA;eml.Append(body)&#xA;&#xA;Dim outPath As String = Path.Combine(Convert.ToString(in_Config(&quot;ReportsFolder&quot;)), _&#xA;    &quot;Alert_&quot; &amp; Convert.ToString(in_Config(&quot;RunId&quot;)) &amp; &quot;.eml&quot;)&#xA;File.WriteAllText(outPath, eml.ToString(), Encoding.UTF8)&#xA;&#xA;out_AlertPath = outPath&#xA;out_Subject = subject&#xA;out_Body = body&#xA;out_ShouldSend = (nFail &gt; 0 OrElse nWarn &gt; 0)&#xA;out_Summary = String.Format(&quot;mode={0} subject=&quot;&quot;{1}&quot;&quot; written to {2}&quot;, mode, subject, Path.GetFileName(outPath))"><ui:InvokeCode.Arguments><scg:Dictionary x:TypeArguments="x:String, Argument"><InArgument x:TypeArguments="scg:Dictionary(x:String, x:Object)" x:Key="in_Config">[in_Config]</InArgument><InArgument x:TypeArguments="sd:DataTable" x:Key="in_dtExceptions">[in_dtExceptions]</InArgument><InArgument x:TypeArguments="scg:Dictionary(x:String, x:Object)" x:Key="in_Stats">[in_Stats]</InArgument><InArgument x:TypeArguments="x:String" x:Key="in_ReportPath">[in_ReportPath]</InArgument><InArgument x:TypeArguments="x:String" x:Key="in_HeadHash">[in_HeadHash]</InArgument><OutArgument x:TypeArguments="x:String" x:Key="out_AlertPath">[out_AlertPath]</OutArgument><OutArgument x:TypeArguments="x:String" x:Key="out_Subject">[subject]</OutArgument><OutArgument x:TypeArguments="x:String" x:Key="out_Body">[htmlBody]</OutArgument><OutArgument x:TypeArguments="x:Boolean" x:Key="out_ShouldSend">[shouldSend]</OutArgument><OutArgument x:TypeArguments="x:String" x:Key="out_Summary">[summary]</OutArgument></scg:Dictionary></ui:InvokeCode.Arguments></ui:InvokeCode><If DisplayName="If - deliver over SMTP" Condition="[Convert.ToString(in_Config(&quot;AlertMode&quot;)).Trim().ToUpperInvariant() = &quot;SMTP&quot; AndAlso shouldSend]"><If.Then><Sequence DisplayName="Send over SMTP"><ui:SendMail DisplayName="Send SMTP Mail Message" Server="[Convert.ToString(in_Config(&quot;SmtpHost&quot;))]" Port="[Convert.ToInt32(in_Config(&quot;SmtpPort&quot;))]" Email="[Convert.ToString(in_Config(&quot;SmtpUser&quot;))]" Password="[Convert.ToString(in_Config(&quot;SmtpPassword&quot;))]" From="[Convert.ToString(in_Config(&quot;AlertFrom&quot;))]" To="[Convert.ToString(in_Config(&quot;AlertTo&quot;)).Replace(&quot;;&quot;, &quot;,&quot;)]" Subject="[subject]" Body="[htmlBody]" IsBodyHtml="True" SecureConnection="Auto" /></Sequence></If.Then><If.Else><Sequence DisplayName="Written to disk"><ui:LogMessage DisplayName="Log - [ALERT] AlertMode is not SMTP - the composed m" Level="Info" Message="[&quot;[ALERT] AlertMode is not SMTP - the composed message was written to disk instead of sent. Set AlertMode=SMTP in Config.xlsx to deliver it.&quot;]" /></Sequence></If.Else></If><ui:LogMessage DisplayName="Log - [ALERT]" Level="Info" Message="[&quot;[ALERT] &quot; &amp; summary]" /></Sequence>
+</Activity>

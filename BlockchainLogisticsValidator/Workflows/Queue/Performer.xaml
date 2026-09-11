@@ -1,0 +1,85 @@
+<Activity mc:Ignorable="sap sap2010" x:Class="Performer" mva:VisualBasic.Settings="{x:Null}"
+ xmlns="http://schemas.microsoft.com/netfx/2009/xaml/activities"
+ xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+ xmlns:mva="clr-namespace:Microsoft.VisualBasic.Activities;assembly=System.Activities"
+ xmlns:njl="clr-namespace:Newtonsoft.Json.Linq;assembly=Newtonsoft.Json"
+ xmlns:s="clr-namespace:System;assembly=System.Private.CoreLib"
+ xmlns:sap="http://schemas.microsoft.com/netfx/2009/xaml/activities/presentation"
+ xmlns:sap2010="http://schemas.microsoft.com/netfx/2010/xaml/activities/presentation"
+ xmlns:scg="clr-namespace:System.Collections.Generic;assembly=System.Private.CoreLib"
+ xmlns:sco="clr-namespace:System.Collections.ObjectModel;assembly=mscorlib"
+ xmlns:sd="clr-namespace:System.Data;assembly=System.Data.Common"
+ xmlns:ui="http://schemas.uipath.com/workflow/activities"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <x:Members>
+    <x:Property Name="in_Config" Type="InArgument(scg:Dictionary(x:String, x:Object))" />
+    <x:Property Name="in_dtRules" Type="InArgument(sd:DataTable)" />
+    <x:Property Name="in_dtWallets" Type="InArgument(sd:DataTable)" />
+  </x:Members>
+
+  <TextExpression.NamespacesForImplementation>
+    <sco:Collection x:TypeArguments="x:String">
+      <x:String>System.Activities</x:String>
+      <x:String>System.Activities.Statements</x:String>
+      <x:String>System.Activities.Expressions</x:String>
+      <x:String>System.Activities.Validation</x:String>
+      <x:String>System.Activities.XamlIntegration</x:String>
+      <x:String>Microsoft.VisualBasic</x:String>
+      <x:String>Microsoft.VisualBasic.Activities</x:String>
+      <x:String>System</x:String>
+      <x:String>System.Collections</x:String>
+      <x:String>System.Collections.Generic</x:String>
+      <x:String>System.Collections.ObjectModel</x:String>
+      <x:String>System.Data</x:String>
+      <x:String>System.Diagnostics</x:String>
+      <x:String>System.Drawing</x:String>
+      <x:String>System.Globalization</x:String>
+      <x:String>System.IO</x:String>
+      <x:String>System.Linq</x:String>
+      <x:String>System.Net.Mail</x:String>
+      <x:String>System.Security.Cryptography</x:String>
+      <x:String>System.Text</x:String>
+      <x:String>System.Xml</x:String>
+      <x:String>System.Xml.Linq</x:String>
+      <x:String>Newtonsoft.Json</x:String>
+      <x:String>Newtonsoft.Json.Linq</x:String>
+      <x:String>UiPath.Core</x:String>
+      <x:String>UiPath.Core.Activities</x:String>
+      <x:String>System.Windows.Markup</x:String>
+    </sco:Collection>
+  </TextExpression.NamespacesForImplementation>
+  <TextExpression.ReferencesForImplementation>
+    <sco:Collection x:TypeArguments="AssemblyReference">
+      <AssemblyReference>System.Activities</AssemblyReference>
+      <AssemblyReference>Microsoft.VisualBasic</AssemblyReference>
+      <AssemblyReference>System.Private.CoreLib</AssemblyReference>
+      <AssemblyReference>mscorlib</AssemblyReference>
+      <AssemblyReference>System.Data</AssemblyReference>
+      <AssemblyReference>System</AssemblyReference>
+      <AssemblyReference>System.Linq</AssemblyReference>
+      <AssemblyReference>System.Data.Common</AssemblyReference>
+      <AssemblyReference>System.Drawing</AssemblyReference>
+      <AssemblyReference>System.Drawing.Primitives</AssemblyReference>
+      <AssemblyReference>System.Drawing.Common</AssemblyReference>
+      <AssemblyReference>System.Core</AssemblyReference>
+      <AssemblyReference>System.Runtime</AssemblyReference>
+      <AssemblyReference>System.Security.Cryptography</AssemblyReference>
+      <AssemblyReference>System.Xml</AssemblyReference>
+      <AssemblyReference>System.Xml.Linq</AssemblyReference>
+      <AssemblyReference>PresentationFramework</AssemblyReference>
+      <AssemblyReference>WindowsBase</AssemblyReference>
+      <AssemblyReference>PresentationCore</AssemblyReference>
+      <AssemblyReference>System.Xaml</AssemblyReference>
+      <AssemblyReference>Newtonsoft.Json</AssemblyReference>
+      <AssemblyReference>UiPath.System.Activities</AssemblyReference>
+      <AssemblyReference>UiPath.UiAutomation.Activities</AssemblyReference>
+      <AssemblyReference>UiPath.Excel.Activities</AssemblyReference>
+      <AssemblyReference>UiPath.Excel</AssemblyReference>
+      <AssemblyReference>UiPath.Mail.Activities</AssemblyReference>
+      <AssemblyReference>UiPath.Web.Activities</AssemblyReference>
+      <AssemblyReference>System.Data.DataSetExtensions</AssemblyReference>
+      <AssemblyReference>System.Net.Mail</AssemblyReference>
+    </sco:Collection>
+  </TextExpression.ReferencesForImplementation>
+  <Sequence DisplayName="Performer - validate one shipment per queue transaction"><Sequence.Variables><Variable x:TypeArguments="ui:QueueItem" Name="txItem" /><Variable x:TypeArguments="x:String" Name="eventsJson" /><Variable x:TypeArguments="x:String" Name="shipmentId" /><Variable x:TypeArguments="x:String" Name="summary" /><Variable x:TypeArguments="sd:DataTable" Name="dtJoined" /><Variable x:TypeArguments="sd:DataTable" Name="dtResults" /><Variable x:TypeArguments="sd:DataTable" Name="dtExceptions" /><Variable x:TypeArguments="scg:Dictionary(x:String, x:Object)" Name="Stats" /></Sequence.Variables><ui:GetQueueItem DisplayName="Get Transaction Item" QueueType="[Convert.ToString(in_Config(&quot;QueueName&quot;))]" TransactionItem="[txItem]" /><If DisplayName="If - a transaction was dequeued" Condition="[txItem IsNot Nothing]"><If.Then><TryCatch DisplayName="Try Catch - transaction processing"><TryCatch.Try><Sequence DisplayName="Process one queue item"><Assign DisplayName="Assign - payload"><Assign.To><OutArgument x:TypeArguments="x:String">[eventsJson]</OutArgument></Assign.To><Assign.Value><InArgument x:TypeArguments="x:String">[Convert.ToString(txItem.SpecificContent(&quot;EventsJson&quot;))]</InArgument></Assign.Value></Assign><Assign DisplayName="Assign - shipment"><Assign.To><OutArgument x:TypeArguments="x:String">[shipmentId]</OutArgument></Assign.To><Assign.Value><InArgument x:TypeArguments="x:String">[Convert.ToString(txItem.SpecificContent(&quot;ShipmentID&quot;))]</InArgument></Assign.Value></Assign><ui:LogMessage DisplayName="Log - [PERFORM]" Level="Info" Message="[&quot;[PERFORM] &quot; &amp; shipmentId]" /><ui:InvokeCode DisplayName="Invoke Code - rehydrate the shipment" Language="VBNet" Code="' Rehydrate one shipment's transactions back into the schema the validation engine&#xA;' expects. The engine is unchanged between batch and queue mode - only the source of&#xA;' its DataTable differs.&#xA;Dim arr As JArray = JArray.Parse(in_EventsJson)&#xA;&#xA;Dim dt As New DataTable(&quot;JoinedTransactions&quot;)&#xA;Dim typed As New Dictionary(Of String, Type)&#xA;typed(&quot;RowNo&quot;) = GetType(Integer)&#xA;typed(&quot;BlockNumber&quot;) = GetType(Long)&#xA;typed(&quot;StepOrder&quot;) = GetType(Integer)&#xA;typed(&quot;OnChainQty&quot;) = GetType(Long)&#xA;typed(&quot;ChainTimestampUtc&quot;) = GetType(DateTime)&#xA;typed(&quot;TxFailed&quot;) = GetType(Boolean)&#xA;&#xA;If arr.Count &gt; 0 Then&#xA;    For Each prop As JProperty In CType(arr(0), JObject).Properties()&#xA;        Dim t As Type = GetType(Object)&#xA;        If typed.ContainsKey(prop.Name) Then t = typed(prop.Name)&#xA;        dt.Columns.Add(prop.Name, t)&#xA;    Next&#xA;End If&#xA;&#xA;For Each tok As JObject In arr&#xA;    Dim rw As DataRow = dt.NewRow()&#xA;    For Each c As DataColumn In dt.Columns&#xA;        Dim v As JToken = tok(c.ColumnName)&#xA;        If v Is Nothing OrElse v.Type = JTokenType.Null Then&#xA;            rw(c.ColumnName) = DBNull.Value&#xA;        ElseIf c.DataType Is GetType(DateTime) Then&#xA;            rw(c.ColumnName) = DateTime.Parse(v.ToString(), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind)&#xA;        ElseIf c.DataType Is GetType(Boolean) Then&#xA;            rw(c.ColumnName) = Convert.ToBoolean(v.ToString())&#xA;        ElseIf c.DataType Is GetType(Long) Then&#xA;            rw(c.ColumnName) = Convert.ToInt64(v.ToString())&#xA;        ElseIf c.DataType Is GetType(Integer) Then&#xA;            rw(c.ColumnName) = Convert.ToInt32(v.ToString())&#xA;        Else&#xA;            rw(c.ColumnName) = v.ToString()&#xA;        End If&#xA;    Next&#xA;    dt.Rows.Add(rw)&#xA;Next&#xA;&#xA;out_dtJoined = dt&#xA;out_Summary = String.Format(&quot;{0} transaction(s) rehydrated&quot;, dt.Rows.Count)"><ui:InvokeCode.Arguments><scg:Dictionary x:TypeArguments="x:String, Argument"><InArgument x:TypeArguments="x:String" x:Key="in_EventsJson">[eventsJson]</InArgument><OutArgument x:TypeArguments="sd:DataTable" x:Key="out_dtJoined">[dtJoined]</OutArgument><OutArgument x:TypeArguments="x:String" x:Key="out_Summary">[summary]</OutArgument></scg:Dictionary></ui:InvokeCode.Arguments></ui:InvokeCode><ui:InvokeWorkflowFile DisplayName="Invoke 05 - Validation engine" WorkflowFileName="Workflows\05_Validate_Engine.xaml"><ui:InvokeWorkflowFile.Arguments><scg:Dictionary x:TypeArguments="x:String, Argument"><InArgument x:TypeArguments="scg:Dictionary(x:String, x:Object)" x:Key="in_Config">[in_Config]</InArgument><InArgument x:TypeArguments="sd:DataTable" x:Key="in_dtJoined">[dtJoined]</InArgument><InArgument x:TypeArguments="sd:DataTable" x:Key="in_dtRules">[in_dtRules]</InArgument><InArgument x:TypeArguments="sd:DataTable" x:Key="in_dtWallets">[in_dtWallets]</InArgument><OutArgument x:TypeArguments="sd:DataTable" x:Key="out_dtResults">[dtResults]</OutArgument><OutArgument x:TypeArguments="sd:DataTable" x:Key="out_dtExceptions">[dtExceptions]</OutArgument><OutArgument x:TypeArguments="scg:Dictionary(x:String, x:Object)" x:Key="out_Stats">[Stats]</OutArgument></scg:Dictionary></ui:InvokeWorkflowFile.Arguments></ui:InvokeWorkflowFile><ui:SetTransactionStatus DisplayName="Set Transaction Status - Successful" TransactionItem="[txItem]" Status="Successful" /><ui:LogMessage DisplayName="Log - [PERFORM]" Level="Info" Message="[&quot;[PERFORM] &quot; &amp; shipmentId &amp; &quot;: &quot; &amp; Convert.ToString(Stats(&quot;Fail&quot;)) &amp; &quot; failure(s), &quot; &amp; Convert.ToString(Stats(&quot;Warning&quot;)) &amp; &quot; warning(s)&quot;]" /></Sequence></TryCatch.Try><TryCatch.Catches><Catch x:TypeArguments="s:Exception"><ActivityAction x:TypeArguments="s:Exception"><ActivityAction.Argument><DelegateInArgument x:TypeArguments="s:Exception" Name="exception" /></ActivityAction.Argument><Sequence DisplayName="Report the failure to Orchestrator"><ui:LogMessage DisplayName="Log - [PERFORM]" Level="Error" Message="[&quot;[PERFORM] &quot; &amp; shipmentId &amp; &quot; failed: &quot; &amp; exception.Message]" /><ui:SetTransactionStatus DisplayName="Set Transaction Status - Failed" TransactionItem="[txItem]" Status="Failed" ErrorType="Application" Reason="[exception.Message]" /></Sequence></ActivityAction></Catch></TryCatch.Catches></TryCatch></If.Then><If.Else><Sequence DisplayName="Queue empty"><ui:LogMessage DisplayName="Log - [PERFORM] Queue is empty - nothing to process." Level="Info" Message="[&quot;[PERFORM] Queue is empty - nothing to process.&quot;]" /></Sequence></If.Else></If></Sequence>
+</Activity>

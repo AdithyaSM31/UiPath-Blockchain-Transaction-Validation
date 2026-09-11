@@ -1,0 +1,84 @@
+<Activity mc:Ignorable="sap sap2010" x:Class="_01a_Extract_FromMockJson" mva:VisualBasic.Settings="{x:Null}"
+ xmlns="http://schemas.microsoft.com/netfx/2009/xaml/activities"
+ xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+ xmlns:mva="clr-namespace:Microsoft.VisualBasic.Activities;assembly=System.Activities"
+ xmlns:njl="clr-namespace:Newtonsoft.Json.Linq;assembly=Newtonsoft.Json"
+ xmlns:s="clr-namespace:System;assembly=System.Private.CoreLib"
+ xmlns:sap="http://schemas.microsoft.com/netfx/2009/xaml/activities/presentation"
+ xmlns:sap2010="http://schemas.microsoft.com/netfx/2010/xaml/activities/presentation"
+ xmlns:scg="clr-namespace:System.Collections.Generic;assembly=System.Private.CoreLib"
+ xmlns:sco="clr-namespace:System.Collections.ObjectModel;assembly=mscorlib"
+ xmlns:sd="clr-namespace:System.Data;assembly=System.Data.Common"
+ xmlns:ui="http://schemas.uipath.com/workflow/activities"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <x:Members>
+    <x:Property Name="in_MockFilePath" Type="InArgument(x:String)" />
+    <x:Property Name="out_dtChain" Type="OutArgument(sd:DataTable)" />
+  </x:Members>
+
+  <TextExpression.NamespacesForImplementation>
+    <sco:Collection x:TypeArguments="x:String">
+      <x:String>System.Activities</x:String>
+      <x:String>System.Activities.Statements</x:String>
+      <x:String>System.Activities.Expressions</x:String>
+      <x:String>System.Activities.Validation</x:String>
+      <x:String>System.Activities.XamlIntegration</x:String>
+      <x:String>Microsoft.VisualBasic</x:String>
+      <x:String>Microsoft.VisualBasic.Activities</x:String>
+      <x:String>System</x:String>
+      <x:String>System.Collections</x:String>
+      <x:String>System.Collections.Generic</x:String>
+      <x:String>System.Collections.ObjectModel</x:String>
+      <x:String>System.Data</x:String>
+      <x:String>System.Diagnostics</x:String>
+      <x:String>System.Drawing</x:String>
+      <x:String>System.Globalization</x:String>
+      <x:String>System.IO</x:String>
+      <x:String>System.Linq</x:String>
+      <x:String>System.Net.Mail</x:String>
+      <x:String>System.Security.Cryptography</x:String>
+      <x:String>System.Text</x:String>
+      <x:String>System.Xml</x:String>
+      <x:String>System.Xml.Linq</x:String>
+      <x:String>Newtonsoft.Json</x:String>
+      <x:String>Newtonsoft.Json.Linq</x:String>
+      <x:String>UiPath.Core</x:String>
+      <x:String>UiPath.Core.Activities</x:String>
+      <x:String>System.Windows.Markup</x:String>
+    </sco:Collection>
+  </TextExpression.NamespacesForImplementation>
+  <TextExpression.ReferencesForImplementation>
+    <sco:Collection x:TypeArguments="AssemblyReference">
+      <AssemblyReference>System.Activities</AssemblyReference>
+      <AssemblyReference>Microsoft.VisualBasic</AssemblyReference>
+      <AssemblyReference>System.Private.CoreLib</AssemblyReference>
+      <AssemblyReference>mscorlib</AssemblyReference>
+      <AssemblyReference>System.Data</AssemblyReference>
+      <AssemblyReference>System</AssemblyReference>
+      <AssemblyReference>System.Linq</AssemblyReference>
+      <AssemblyReference>System.Data.Common</AssemblyReference>
+      <AssemblyReference>System.Drawing</AssemblyReference>
+      <AssemblyReference>System.Drawing.Primitives</AssemblyReference>
+      <AssemblyReference>System.Drawing.Common</AssemblyReference>
+      <AssemblyReference>System.Core</AssemblyReference>
+      <AssemblyReference>System.Runtime</AssemblyReference>
+      <AssemblyReference>System.Security.Cryptography</AssemblyReference>
+      <AssemblyReference>System.Xml</AssemblyReference>
+      <AssemblyReference>System.Xml.Linq</AssemblyReference>
+      <AssemblyReference>PresentationFramework</AssemblyReference>
+      <AssemblyReference>WindowsBase</AssemblyReference>
+      <AssemblyReference>PresentationCore</AssemblyReference>
+      <AssemblyReference>System.Xaml</AssemblyReference>
+      <AssemblyReference>Newtonsoft.Json</AssemblyReference>
+      <AssemblyReference>UiPath.System.Activities</AssemblyReference>
+      <AssemblyReference>UiPath.UiAutomation.Activities</AssemblyReference>
+      <AssemblyReference>UiPath.Excel.Activities</AssemblyReference>
+      <AssemblyReference>UiPath.Excel</AssemblyReference>
+      <AssemblyReference>UiPath.Mail.Activities</AssemblyReference>
+      <AssemblyReference>UiPath.Web.Activities</AssemblyReference>
+      <AssemblyReference>System.Data.DataSetExtensions</AssemblyReference>
+      <AssemblyReference>System.Net.Mail</AssemblyReference>
+    </sco:Collection>
+  </TextExpression.ReferencesForImplementation>
+  <Sequence DisplayName="01a - Extract from mock chain feed"><Sequence.Variables><Variable x:TypeArguments="x:String" Name="jsonText" /><Variable x:TypeArguments="njl:JObject" Name="jsonObj" /><Variable x:TypeArguments="x:String" Name="summary" /></Sequence.Variables><ui:LogMessage DisplayName="Log - [EXTRACT/MOCK] Reading" Level="Info" Message="[&quot;[EXTRACT/MOCK] Reading &quot; &amp; in_MockFilePath]" /><ui:ReadTextFile DisplayName="Read Text File - mock Etherscan response" FileName="[in_MockFilePath]" Content="[jsonText]" /><ui:DeserializeJson x:TypeArguments="njl:JObject" DisplayName="Deserialize JSON" JsonString="[jsonText]" JsonObject="[jsonObj]" /><If DisplayName="If - explorer reported an error" Condition="[Convert.ToString(jsonObj(&quot;status&quot;)) &lt;&gt; &quot;1&quot;]"><If.Then><Throw DisplayName="Throw" Exception="[New InvalidOperationException(&quot;Explorer returned status=&quot; &amp; Convert.ToString(jsonObj(&quot;status&quot;)) &amp; &quot; message=&quot; &amp; Convert.ToString(jsonObj(&quot;message&quot;)))]" /></If.Then></If><ui:InvokeCode DisplayName="Invoke Code - ABI decode and normalise" Language="VBNet" Code="' Flatten an Etherscan `txlist` result array into the canonical chain DataTable.&#xA;' Every extraction mode (MOCK, API, WEB) produces exactly this schema, so nothing&#xA;' downstream needs to know where the data came from.&#xA;Dim arr As JArray = CType(in_Json(&quot;result&quot;), JArray)&#xA;&#xA;Dim dt As New DataTable(&quot;ChainTransactions&quot;)&#xA;dt.Columns.Add(&quot;TxHash&quot;, GetType(String))&#xA;dt.Columns.Add(&quot;BlockNumber&quot;, GetType(Long))&#xA;dt.Columns.Add(&quot;EventTimestampUtc&quot;, GetType(DateTime))&#xA;dt.Columns.Add(&quot;SenderAddress&quot;, GetType(String))&#xA;dt.Columns.Add(&quot;ContractAddress&quot;, GetType(String))&#xA;dt.Columns.Add(&quot;EventSelector&quot;, GetType(String))&#xA;dt.Columns.Add(&quot;ShipmentID&quot;, GetType(String))&#xA;dt.Columns.Add(&quot;OnChainQty&quot;, GetType(Long))&#xA;dt.Columns.Add(&quot;PONumber&quot;, GetType(String))&#xA;dt.Columns.Add(&quot;TxFailed&quot;, GetType(Boolean))&#xA;dt.Columns.Add(&quot;SourceMode&quot;, GetType(String))&#xA;dt.Columns.Add(&quot;RawInput&quot;, GetType(String))&#xA;&#xA;Dim epoch As New DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)&#xA;Dim skipped As Integer = 0&#xA;&#xA;For Each tok As JObject In arr&#xA;    Dim inputHex As String = Convert.ToString(tok(&quot;input&quot;))&#xA;&#xA;    ' A plain value transfer carries no call data - nothing to validate, so skip it.&#xA;    If inputHex Is Nothing OrElse inputHex.Length &lt; 10 Then&#xA;        skipped += 1&#xA;        Continue For&#xA;    End If&#xA;&#xA;    ' ---- ABI decode: f(string, uint256, string) -------------------------&#xA;    ' Call data is the 4-byte selector followed by 32-byte words. The first and&#xA;    ' third words hold byte offsets to the dynamic strings; the second is the&#xA;    ' uint256 quantity inline.&#xA;    Dim body As String = inputHex.Substring(10)&#xA;    Dim words As New List(Of String)&#xA;    Dim i As Integer = 0&#xA;    While i + 64 &lt;= body.Length&#xA;        words.Add(body.Substring(i, 64))&#xA;        i += 64&#xA;    End While&#xA;&#xA;    If words.Count &lt; 3 Then&#xA;        skipped += 1&#xA;        Continue For&#xA;    End If&#xA;&#xA;    Dim qty As Long = Convert.ToInt64(words(1), 16)&#xA;    Dim offs() As Integer = {Convert.ToInt32(words(0), 16) \ 32, Convert.ToInt32(words(2), 16) \ 32}&#xA;    Dim strs(1) As String&#xA;&#xA;    For n As Integer = 0 To 1&#xA;        Dim idx As Integer = offs(n)&#xA;        Dim slen As Integer = Convert.ToInt32(words(idx), 16)&#xA;        Dim sb As New StringBuilder()&#xA;        Dim w As Integer = idx + 1&#xA;        While sb.Length &lt; slen * 2 AndAlso w &lt; words.Count&#xA;            sb.Append(words(w))&#xA;            w += 1&#xA;        End While&#xA;        Dim hx As String = sb.ToString()&#xA;        Dim raw(Math.Max(slen - 1, 0)) As Byte&#xA;        For k As Integer = 0 To slen - 1&#xA;            raw(k) = Convert.ToByte(hx.Substring(k * 2, 2), 16)&#xA;        Next&#xA;        strs(n) = Encoding.UTF8.GetString(raw, 0, slen)&#xA;    Next&#xA;&#xA;    ' ---- Normalisation happens on the way in ----------------------------&#xA;    ' Addresses are lower-cased here so EIP-55 checksummed values from the chain&#xA;    ' reconcile against the lower-case forms the ERP stores. Comparing raw would&#xA;    ' fail on every single row.&#xA;    Dim rw As DataRow = dt.NewRow()&#xA;    rw(&quot;TxHash&quot;) = Convert.ToString(tok(&quot;hash&quot;)).ToLowerInvariant()&#xA;    rw(&quot;BlockNumber&quot;) = Convert.ToInt64(Convert.ToString(tok(&quot;blockNumber&quot;)))&#xA;    rw(&quot;EventTimestampUtc&quot;) = epoch.AddSeconds(Convert.ToDouble(Convert.ToString(tok(&quot;timeStamp&quot;))))&#xA;    rw(&quot;SenderAddress&quot;) = Convert.ToString(tok(&quot;from&quot;)).ToLowerInvariant()&#xA;    rw(&quot;ContractAddress&quot;) = Convert.ToString(tok(&quot;to&quot;)).ToLowerInvariant()&#xA;    rw(&quot;EventSelector&quot;) = inputHex.Substring(0, 10).ToLowerInvariant()&#xA;    rw(&quot;ShipmentID&quot;) = strs(0)&#xA;    rw(&quot;OnChainQty&quot;) = qty&#xA;    rw(&quot;PONumber&quot;) = strs(1)&#xA;    rw(&quot;TxFailed&quot;) = (Convert.ToString(tok(&quot;isError&quot;)) = &quot;1&quot;)&#xA;    rw(&quot;SourceMode&quot;) = in_SourceMode&#xA;    rw(&quot;RawInput&quot;) = inputHex&#xA;    dt.Rows.Add(rw)&#xA;Next&#xA;&#xA;out_dtChain = dt&#xA;out_Summary = String.Format(&quot;{0} transactions decoded, {1} skipped (no call data)&quot;, dt.Rows.Count, skipped)"><ui:InvokeCode.Arguments><scg:Dictionary x:TypeArguments="x:String, Argument"><InArgument x:TypeArguments="njl:JObject" x:Key="in_Json">[jsonObj]</InArgument><InArgument x:TypeArguments="x:String" x:Key="in_SourceMode">[&quot;MOCK&quot;]</InArgument><OutArgument x:TypeArguments="sd:DataTable" x:Key="out_dtChain">[out_dtChain]</OutArgument><OutArgument x:TypeArguments="x:String" x:Key="out_Summary">[summary]</OutArgument></scg:Dictionary></ui:InvokeCode.Arguments></ui:InvokeCode><ui:LogMessage DisplayName="Log - [EXTRACT/MOCK]" Level="Info" Message="[&quot;[EXTRACT/MOCK] &quot; &amp; summary]" /></Sequence>
+</Activity>
