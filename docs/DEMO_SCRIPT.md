@@ -8,6 +8,32 @@ spreadsheet opening on the wrong screen.
 
 ---
 
+## Who speaks when
+
+Speak to what you built — an examiner can tell, and "my teammate did that part" is a bad
+answer to a direct question. Both of you should be able to answer anything, but lead on
+your own half.
+
+| Section | Lead | Why |
+|---|---|---|
+| 1 · The problem | **Nitin** | Sets up the thesis; no screen, so it opens on eye contact |
+| 2 · Config.xlsx | **Adithya** | Feeds straight into the rules he built |
+| 3 · The run | **Adithya** | Extraction, mapping and the validation engine |
+| 4 · Dashboard | **Nitin** | He owns reporting and the audit trail |
+| 4.5 · Excel report | **Nitin** | Same |
+| 5.1 Rule toggle | **Adithya** | It is the rules engine responding to config |
+| 5.2 Human-in-the-loop | **Nitin** | His workflow |
+| 5.3 Chain swap | **Adithya** | It is an extraction-layer property |
+| 5.4 Tamper test | **Nitin** | His workflow, and the strongest moment |
+| 5.5 Tests | **Nitin** | He owns the test cases |
+| 6 · Scale / queues | **Adithya** | Orchestrator and packaging |
+| 7 · Close | **Either** | Whoever is steadier under time pressure |
+
+Hand over explicitly — "Nitin will take the audit trail from here" — rather than drifting.
+Two people talking over one screen reads as unprepared.
+
+---
+
 ## Before you present
 
 ```bash
@@ -199,6 +225,25 @@ themselves have not been run against a live tenant.
 > rules, human escalation where it matters, and an audit trail that proves it wasn't altered
 > afterwards. The whole thing is verified by a twelve-check acceptance suite that runs in one
 > command, and the bot writes its own dashboard."
+
+---
+
+## If something breaks live
+
+It probably won't — the suite is green — but know the recoveries so a hiccup costs ten
+seconds, not your composure.
+
+| Symptom | Do this |
+|---|---|
+| Studio run hangs with no output | Excel COM is stuck from an earlier kill. Close Excel, `build.ps1` clears stray executors. |
+| A script errors | Fall back to `docs/sample-output/dashboard.html` — committed output from a real run. Say "here's the output from the run I did this morning" and carry on. |
+| `[VERIFY] INVALID` unexpectedly | You are mid-tamper-test. Re-run `tamper_test.ps1`; it restores the file and ends VALID. |
+| Reviewer dialog does not appear | `AttendedMode` is `False` in `Config.xlsx`. Set it `True`, or just describe it. |
+| Projector cuts the right of the screen | The dashboard reflows — narrow the browser window rather than scrolling sideways. |
+
+**The universal recovery:** everything you are demonstrating is already captured in
+`docs/RESULTS.md` with real numbers. If the machine misbehaves, switch to that document and
+keep talking. Never debug live in front of an examiner.
 
 ---
 
