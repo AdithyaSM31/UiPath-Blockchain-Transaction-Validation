@@ -1,21 +1,12 @@
-<Activity mc:Ignorable="sap sap2010" x:Class="_01_Extract_Blockchain" mva:VisualBasic.Settings="{x:Null}"
- xmlns="http://schemas.microsoft.com/netfx/2009/xaml/activities"
- xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
- xmlns:mva="clr-namespace:Microsoft.VisualBasic.Activities;assembly=System.Activities"
- xmlns:njl="clr-namespace:Newtonsoft.Json.Linq;assembly=Newtonsoft.Json"
- xmlns:s="clr-namespace:System;assembly=System.Private.CoreLib"
- xmlns:sap="http://schemas.microsoft.com/netfx/2009/xaml/activities/presentation"
- xmlns:sap2010="http://schemas.microsoft.com/netfx/2010/xaml/activities/presentation"
- xmlns:scg="clr-namespace:System.Collections.Generic;assembly=System.Private.CoreLib"
- xmlns:sco="clr-namespace:System.Collections.ObjectModel;assembly=mscorlib"
- xmlns:sd="clr-namespace:System.Data;assembly=System.Data.Common"
- xmlns:ui="http://schemas.uipath.com/workflow/activities"
- xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+<Activity mc:Ignorable="sap sap2010" x:Class="_01_Extract_Blockchain" xmlns="http://schemas.microsoft.com/netfx/2009/xaml/activities" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" xmlns:sap="http://schemas.microsoft.com/netfx/2009/xaml/activities/presentation" xmlns:sap2010="http://schemas.microsoft.com/netfx/2010/xaml/activities/presentation" xmlns:scg="clr-namespace:System.Collections.Generic;assembly=System.Private.CoreLib" xmlns:sco="clr-namespace:System.Collections.ObjectModel;assembly=System.Private.CoreLib" xmlns:sd="clr-namespace:System.Data;assembly=System.Data.Common" xmlns:ui="http://schemas.uipath.com/workflow/activities" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
   <x:Members>
     <x:Property Name="in_Config" Type="InArgument(scg:Dictionary(x:String, x:Object))" />
     <x:Property Name="out_dtChain" Type="OutArgument(sd:DataTable)" />
   </x:Members>
-
+  <VisualBasic.Settings>
+    <x:Null />
+  </VisualBasic.Settings>
+  <sap2010:WorkflowViewState.IdRef>ActivityBuilder_1</sap2010:WorkflowViewState.IdRef>
   <TextExpression.NamespacesForImplementation>
     <sco:Collection x:TypeArguments="x:String">
       <x:String>System.Activities</x:String>
@@ -45,40 +36,87 @@
       <x:String>UiPath.Core</x:String>
       <x:String>UiPath.Core.Activities</x:String>
       <x:String>System.Windows.Markup</x:String>
+      <x:String>GlobalVariablesNamespace</x:String>
+      <x:String>GlobalConstantsNamespace</x:String>
     </sco:Collection>
   </TextExpression.NamespacesForImplementation>
   <TextExpression.ReferencesForImplementation>
     <sco:Collection x:TypeArguments="AssemblyReference">
-      <AssemblyReference>System.Activities</AssemblyReference>
       <AssemblyReference>Microsoft.VisualBasic</AssemblyReference>
-      <AssemblyReference>System.Private.CoreLib</AssemblyReference>
       <AssemblyReference>mscorlib</AssemblyReference>
-      <AssemblyReference>System.Data</AssemblyReference>
+      <AssemblyReference>Newtonsoft.Json</AssemblyReference>
+      <AssemblyReference>PresentationCore</AssemblyReference>
+      <AssemblyReference>PresentationFramework</AssemblyReference>
       <AssemblyReference>System</AssemblyReference>
-      <AssemblyReference>System.Linq</AssemblyReference>
-      <AssemblyReference>System.Data.Common</AssemblyReference>
-      <AssemblyReference>System.Drawing</AssemblyReference>
-      <AssemblyReference>System.Drawing.Primitives</AssemblyReference>
-      <AssemblyReference>System.Drawing.Common</AssemblyReference>
+      <AssemblyReference>System.Activities</AssemblyReference>
+      <AssemblyReference>System.ComponentModel.TypeConverter</AssemblyReference>
       <AssemblyReference>System.Core</AssemblyReference>
+      <AssemblyReference>System.Data</AssemblyReference>
+      <AssemblyReference>System.Data.Common</AssemblyReference>
+      <AssemblyReference>System.Data.DataSetExtensions</AssemblyReference>
+      <AssemblyReference>System.Drawing</AssemblyReference>
+      <AssemblyReference>System.Drawing.Common</AssemblyReference>
+      <AssemblyReference>System.Drawing.Primitives</AssemblyReference>
+      <AssemblyReference>System.Linq</AssemblyReference>
+      <AssemblyReference>System.Net.Mail</AssemblyReference>
+      <AssemblyReference>System.ObjectModel</AssemblyReference>
+      <AssemblyReference>System.Private.CoreLib</AssemblyReference>
       <AssemblyReference>System.Runtime</AssemblyReference>
       <AssemblyReference>System.Security.Cryptography</AssemblyReference>
+      <AssemblyReference>System.Xaml</AssemblyReference>
       <AssemblyReference>System.Xml</AssemblyReference>
       <AssemblyReference>System.Xml.Linq</AssemblyReference>
-      <AssemblyReference>PresentationFramework</AssemblyReference>
-      <AssemblyReference>WindowsBase</AssemblyReference>
-      <AssemblyReference>PresentationCore</AssemblyReference>
-      <AssemblyReference>System.Xaml</AssemblyReference>
-      <AssemblyReference>Newtonsoft.Json</AssemblyReference>
+      <AssemblyReference>UiPath.Excel</AssemblyReference>
+      <AssemblyReference>UiPath.Excel.Activities</AssemblyReference>
+      <AssemblyReference>UiPath.Mail.Activities</AssemblyReference>
       <AssemblyReference>UiPath.System.Activities</AssemblyReference>
       <AssemblyReference>UiPath.UiAutomation.Activities</AssemblyReference>
-      <AssemblyReference>UiPath.Excel.Activities</AssemblyReference>
-      <AssemblyReference>UiPath.Excel</AssemblyReference>
-      <AssemblyReference>UiPath.Mail.Activities</AssemblyReference>
       <AssemblyReference>UiPath.Web.Activities</AssemblyReference>
-      <AssemblyReference>System.Data.DataSetExtensions</AssemblyReference>
-      <AssemblyReference>System.Net.Mail</AssemblyReference>
+      <AssemblyReference>WindowsBase</AssemblyReference>
     </sco:Collection>
   </TextExpression.ReferencesForImplementation>
-  <Sequence DisplayName="01 - Extract blockchain transactions"><ui:LogMessage DisplayName="Log - [EXTRACT] Source mode" Level="Info" Message="[&quot;[EXTRACT] Source mode: &quot; &amp; Convert.ToString(in_Config(&quot;DataSourceMode&quot;))]" /><Switch x:TypeArguments="x:String" DisplayName="Switch - DataSourceMode" Expression="[Convert.ToString(in_Config(&quot;DataSourceMode&quot;)).ToUpperInvariant()]"><Switch.Default><Sequence DisplayName="Default"><Throw DisplayName="Throw" Exception="[New InvalidOperationException(&quot;Unsupported DataSourceMode: &quot; &amp; Convert.ToString(in_Config(&quot;DataSourceMode&quot;)))]" /></Sequence></Switch.Default><Sequence x:Key="MOCK" DisplayName="MOCK"><ui:InvokeWorkflowFile DisplayName="Invoke 01a - mock chain feed" WorkflowFileName="Workflows\01a_Extract_FromMockJson.xaml"><ui:InvokeWorkflowFile.Arguments><scg:Dictionary x:TypeArguments="x:String, Argument"><InArgument x:TypeArguments="x:String" x:Key="in_MockFilePath">[Convert.ToString(in_Config(&quot;MockChainFile&quot;))]</InArgument><OutArgument x:TypeArguments="sd:DataTable" x:Key="out_dtChain">[out_dtChain]</OutArgument></scg:Dictionary></ui:InvokeWorkflowFile.Arguments></ui:InvokeWorkflowFile></Sequence><Sequence x:Key="API" DisplayName="API"><ui:InvokeWorkflowFile DisplayName="Invoke 01b - Etherscan API" WorkflowFileName="Workflows\01b_Extract_FromEtherscanApi.xaml"><ui:InvokeWorkflowFile.Arguments><scg:Dictionary x:TypeArguments="x:String, Argument"><InArgument x:TypeArguments="scg:Dictionary(x:String, x:Object)" x:Key="in_Config">[in_Config]</InArgument><OutArgument x:TypeArguments="sd:DataTable" x:Key="out_dtChain">[out_dtChain]</OutArgument></scg:Dictionary></ui:InvokeWorkflowFile.Arguments></ui:InvokeWorkflowFile></Sequence><Sequence x:Key="WEB" DisplayName="WEB"><ui:InvokeWorkflowFile DisplayName="Invoke 01c - explorer UI scraping" WorkflowFileName="Workflows\01c_Extract_FromExplorerUI.xaml"><ui:InvokeWorkflowFile.Arguments><scg:Dictionary x:TypeArguments="x:String, Argument"><InArgument x:TypeArguments="scg:Dictionary(x:String, x:Object)" x:Key="in_Config">[in_Config]</InArgument><OutArgument x:TypeArguments="sd:DataTable" x:Key="out_dtChain">[out_dtChain]</OutArgument></scg:Dictionary></ui:InvokeWorkflowFile.Arguments></ui:InvokeWorkflowFile></Sequence></Switch><If DisplayName="If - nothing returned" Condition="[out_dtChain Is Nothing OrElse out_dtChain.Rows.Count = 0]"><If.Then><ui:LogMessage DisplayName="Log - [EXTRACT] No transactions returned for contrac" Level="Warn" Message="[&quot;[EXTRACT] No transactions returned for contract &quot; &amp; Convert.ToString(in_Config(&quot;ContractAddress&quot;))]" /></If.Then></If></Sequence>
+  <Sequence DisplayName="01 - Extract blockchain transactions" sap2010:WorkflowViewState.IdRef="Sequence_5">
+    <sap:WorkflowViewStateService.ViewState>
+      <scg:Dictionary x:TypeArguments="x:String, x:Object">
+        <x:Boolean x:Key="IsExpanded">True</x:Boolean>
+      </scg:Dictionary>
+    </sap:WorkflowViewStateService.ViewState>
+    <ui:LogMessage DisplayName="Log - [EXTRACT] Source mode" sap2010:WorkflowViewState.IdRef="LogMessage_1" Level="Info" Message="[&quot;[EXTRACT] Source mode: &quot; &amp; Convert.ToString(in_Config(&quot;DataSourceMode&quot;))]" />
+    <Switch x:TypeArguments="x:String" DisplayName="Switch - DataSourceMode" Expression="[Convert.ToString(in_Config(&quot;DataSourceMode&quot;)).ToUpperInvariant()]" sap2010:WorkflowViewState.IdRef="Switch`1_1">
+      <Switch.Default>
+        <Sequence DisplayName="Default" sap2010:WorkflowViewState.IdRef="Sequence_4">
+          <Throw DisplayName="Throw" Exception="[New InvalidOperationException(&quot;Unsupported DataSourceMode: &quot; &amp; Convert.ToString(in_Config(&quot;DataSourceMode&quot;)))]" sap2010:WorkflowViewState.IdRef="Throw_1" />
+        </Sequence>
+      </Switch.Default>
+      <Sequence x:Key="MOCK" DisplayName="MOCK" sap2010:WorkflowViewState.IdRef="Sequence_1">
+        <ui:InvokeWorkflowFile ArgumentsVariable="{x:Null}" DisplayName="Invoke 01a - mock chain feed" sap2010:WorkflowViewState.IdRef="InvokeWorkflowFile_1" UnSafe="False" WorkflowFileName="Workflows\01a_Extract_FromMockJson.xaml">
+          <ui:InvokeWorkflowFile.Arguments>
+            <InArgument x:TypeArguments="x:String" x:Key="in_MockFilePath">[Convert.ToString(in_Config("MockChainFile"))]</InArgument>
+            <OutArgument x:TypeArguments="sd:DataTable" x:Key="out_dtChain">[out_dtChain]</OutArgument>
+          </ui:InvokeWorkflowFile.Arguments>
+        </ui:InvokeWorkflowFile>
+      </Sequence>
+      <Sequence x:Key="API" DisplayName="API" sap2010:WorkflowViewState.IdRef="Sequence_2">
+        <ui:InvokeWorkflowFile ArgumentsVariable="{x:Null}" DisplayName="Invoke 01b - Etherscan API" sap2010:WorkflowViewState.IdRef="InvokeWorkflowFile_2" UnSafe="False" WorkflowFileName="Workflows\01b_Extract_FromEtherscanApi.xaml">
+          <ui:InvokeWorkflowFile.Arguments>
+            <InArgument x:TypeArguments="scg:Dictionary(x:String, x:Object)" x:Key="in_Config">[in_Config]</InArgument>
+            <OutArgument x:TypeArguments="sd:DataTable" x:Key="out_dtChain">[out_dtChain]</OutArgument>
+          </ui:InvokeWorkflowFile.Arguments>
+        </ui:InvokeWorkflowFile>
+      </Sequence>
+      <Sequence x:Key="WEB" DisplayName="WEB" sap2010:WorkflowViewState.IdRef="Sequence_3">
+        <ui:InvokeWorkflowFile ArgumentsVariable="{x:Null}" DisplayName="Invoke 01c - explorer UI scraping" sap2010:WorkflowViewState.IdRef="InvokeWorkflowFile_3" UnSafe="False" WorkflowFileName="Workflows\01c_Extract_FromExplorerUI.xaml">
+          <ui:InvokeWorkflowFile.Arguments>
+            <InArgument x:TypeArguments="scg:Dictionary(x:String, x:Object)" x:Key="in_Config">[in_Config]</InArgument>
+            <OutArgument x:TypeArguments="sd:DataTable" x:Key="out_dtChain">[out_dtChain]</OutArgument>
+          </ui:InvokeWorkflowFile.Arguments>
+        </ui:InvokeWorkflowFile>
+      </Sequence>
+    </Switch>
+    <If Condition="[out_dtChain Is Nothing OrElse out_dtChain.Rows.Count = 0]" DisplayName="If - nothing returned" sap2010:WorkflowViewState.IdRef="If_1">
+      <If.Then>
+        <ui:LogMessage DisplayName="Log - [EXTRACT] No transactions returned for contrac" sap2010:WorkflowViewState.IdRef="LogMessage_2" Level="Warn" Message="[&quot;[EXTRACT] No transactions returned for contract &quot; &amp; Convert.ToString(in_Config(&quot;ContractAddress&quot;))]" />
+      </If.Then>
+    </If>
+  </Sequence>
 </Activity>

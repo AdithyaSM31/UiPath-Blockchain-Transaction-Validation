@@ -1,0 +1,45 @@
+{
+  "$schema": "https://cloud.uipath.com/draft/2024-12/entry-point",
+  "entryPoints": [
+    {
+      "filePath": "Main.xaml",
+      "uniqueId": "6c3fa1de-9f04-4c0b-9c5e-7b2a1d5e4f10",
+      "type": "process"
+    },
+    {
+      "filePath": "Tests\\TC01_R1_TimestampCheck.xaml",
+      "uniqueId": "d60be95f-05db-5c3b-884b-20a198995934",
+      "type": "process"
+    },
+    {
+      "filePath": "Tests\\TC02_R2_QuantityMatch.xaml",
+      "uniqueId": "ad043026-d0e6-53ec-b2b9-dd4ba9d8df81",
+      "type": "process"
+    },
+    {
+      "filePath": "Tests\\TC03_R3_AddressWhitelist.xaml",
+      "uniqueId": "3084fa37-e638-5249-92a5-d14fc6558573",
+      "type": "process"
+    },
+    {
+      "filePath": "Tests\\TC04_R4_DuplicateDetection.xaml",
+      "uniqueId": "6c150ef5-8148-5c8e-8dba-848612123a68",
+      "type": "process"
+    },
+    {
+      "filePath": "Tests\\TC05_R5_SequenceValidation.xaml",
+      "uniqueId": "ed3a8d35-a7f3-5bd9-b093-74545b057abd",
+      "type": "process"
+    },
+    {
+      "filePath": "Tests\\TC06_R6_SmartContractEvent.xaml",
+      "uniqueId": "86afbefe-cfb3-5767-8093-4270c133038c",
+      "type": "process"
+    },
+    {
+      "filePath": "Tests\\TC07_AuditChain_TamperEvident.xaml",
+      "uniqueId": "faf8a3f2-9123-5503-b9ff-5e95f21b967c",
+      "type": "process"
+    }
+  ]
+}
