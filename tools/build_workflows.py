@@ -47,6 +47,7 @@ HITL_LABEL_EXPR = (
     ' "Finding:" & vbCrLf & Convert.ToString(CurrentRow("FailureReasons"))'
 )
 
+WEBHOOK_URL_EXPR = 'Convert.ToString(in_Config("AlertWebhookUrl"))'
 QUEUE_NAME_EXPR = 'Convert.ToString(in_Config("QueueName"))'
 EXPLORER_URL_EXPR = 'Convert.ToString(in_Config("ExplorerPageUrl"))'
 
@@ -2149,6 +2150,96 @@ out_Summary = String.Format("dashboard JSON written with {0} finding(s): {1}", b
 # ==========================================================================
 # 09_Alert_Email
 # ==========================================================================
+WEBHOOK_PAYLOAD_CODE = r'''
+' Build the webhook body for the configured chat platform. Teams uses an Adaptive
+' Card in the envelope its Workflows webhooks accept; Slack uses Block Kit; GENERIC
+' is plain machine-readable JSON for anything else listening.
+Dim fmt As String = Convert.ToString(in_Config("AlertWebhookFormat")).Trim().ToUpperInvariant()
+If fmt = "" Then fmt = "GENERIC"
+
+Dim findings As New List(Of DataRow)
+If in_dtExceptions IsNot Nothing Then
+    For Each r As DataRow In in_dtExceptions.Rows
+        findings.Add(r)
+    Next
+End If
+Dim line As Func(Of DataRow, String) = Function(r As DataRow) _
+    Convert.ToString(r("ShipmentID")) & " " & Convert.ToString(r("EventName")) & " - " & _
+    Convert.ToString(r("ValidationStatus")) & ": " & Convert.ToString(r("FailureReasons"))
+
+Dim facts As New List(Of String())
+facts.Add(New String() {"Validated", Convert.ToString(in_Stats("Total"))})
+facts.Add(New String() {"Passed", Convert.ToString(in_Stats("Pass")) & " (" & Convert.ToString(in_Stats("PassPercent")) & "%)"})
+facts.Add(New String() {"Warnings", Convert.ToString(in_Stats("Warning"))})
+facts.Add(New String() {"Failed", Convert.ToString(in_Stats("Fail"))})
+facts.Add(New String() {"Escalated", Convert.ToString(in_Stats("Escalations"))})
+facts.Add(New String() {"Run", Convert.ToString(in_Config("RunId"))})
+
+Dim payload As JObject
+Select Case fmt
+    Case "TEAMS"
+        Dim factSet As New JArray()
+        For Each f As String() In facts
+            factSet.Add(New JObject(New JProperty("title", f(0)), New JProperty("value", f(1))))
+        Next
+        Dim cardBody As New JArray()
+        cardBody.Add(New JObject(New JProperty("type", "TextBlock"), New JProperty("size", "Large"), _
+            New JProperty("weight", "Bolder"), New JProperty("wrap", True), New JProperty("text", in_Subject)))
+        cardBody.Add(New JObject(New JProperty("type", "FactSet"), New JProperty("facts", factSet)))
+        For Each r As DataRow In findings.Take(10)
+            cardBody.Add(New JObject(New JProperty("type", "TextBlock"), New JProperty("wrap", True), _
+                New JProperty("text", "- " & line(r))))
+        Next
+        Dim card As New JObject(New JProperty("$schema", "http://adaptivecards.io/schemas/adaptive-card.json"), _
+            New JProperty("type", "AdaptiveCard"), New JProperty("version", "1.4"), New JProperty("body", cardBody))
+        payload = New JObject(New JProperty("type", "message"), New JProperty("attachments", New JArray( _
+            New JObject(New JProperty("contentType", "application/vnd.microsoft.card.adaptive"), _
+                        New JProperty("contentUrl", Nothing), New JProperty("content", card)))))
+    Case "SLACK"
+        Dim fields As New JArray()
+        For Each f As String() In facts.Take(5)
+            fields.Add(New JObject(New JProperty("type", "mrkdwn"), New JProperty("text", "*" & f(0) & "*" & vbLf & f(1))))
+        Next
+        Dim blocks As New JArray()
+        blocks.Add(New JObject(New JProperty("type", "header"), New JProperty("text", _
+            New JObject(New JProperty("type", "plain_text"), New JProperty("text", If(in_Subject.Length > 150, in_Subject.Substring(0, 150), in_Subject))))))
+        blocks.Add(New JObject(New JProperty("type", "section"), New JProperty("fields", fields)))
+        If findings.Count > 0 Then
+            blocks.Add(New JObject(New JProperty("type", "section"), New JProperty("text", New JObject( _
+                New JProperty("type", "mrkdwn"), _
+                New JProperty("text", String.Join(vbLf, findings.Take(10).Select(Function(r) "- " & line(r))))))))
+        End If
+        payload = New JObject(New JProperty("text", in_Subject), New JProperty("blocks", blocks))
+    Case Else
+        Dim arr As New JArray()
+        For Each r As DataRow In findings
+            arr.Add(New JObject(New JProperty("shipmentId", Convert.ToString(r("ShipmentID"))), _
+                New JProperty("event", Convert.ToString(r("EventName"))), _
+                New JProperty("status", Convert.ToString(r("ValidationStatus"))), _
+                New JProperty("severity", Convert.ToString(r("Severity"))), _
+                New JProperty("reasons", Convert.ToString(r("FailureReasons")))))
+        Next
+        payload = New JObject(New JProperty("subject", in_Subject), _
+            New JProperty("runId", Convert.ToString(in_Config("RunId"))), _
+            New JProperty("bot", Convert.ToString(in_Config("BotIdentity"))), _
+            New JProperty("total", Convert.ToInt32(in_Stats("Total"))), _
+            New JProperty("pass", Convert.ToInt32(in_Stats("Pass"))), _
+            New JProperty("warning", Convert.ToInt32(in_Stats("Warning"))), _
+            New JProperty("fail", Convert.ToInt32(in_Stats("Fail"))), _
+            New JProperty("findings", arr))
+End Select
+
+out_Payload = payload.ToString(Newtonsoft.Json.Formatting.None)
+out_Format = fmt
+'''.strip()
+
+
+def _channel(name: str) -> str:
+    """True when AlertMode lists this delivery channel. AlertMode is a comma list."""
+    return (f'Convert.ToString(in_Config("AlertMode")).ToUpperInvariant().Replace(" ", "")'
+            f'.Split(","c).Contains("{name}")')
+
+
 def send_smtp_mail() -> str:
     """
     Classic Send SMTP Mail Message (UiPath.Mail.SMTP.Activities.SendMail).
@@ -2252,7 +2343,7 @@ out_AlertPath = outPath
 out_Subject = subject
 out_Body = body
 out_ShouldSend = (nFail > 0 OrElse nWarn > 0)
-out_Summary = String.Format("mode={0} subject=""{1}"" written to {2}", mode, subject, Path.GetFileName(outPath))
+out_Summary = String.Format("channels={0} subject=""{1}"" archived as {2}", mode, subject, Path.GetFileName(outPath))
 '''.strip()
 
     body = sequence(
@@ -2269,15 +2360,46 @@ out_Summary = String.Format("mode={0} subject=""{1}"" written to {2}", mode, sub
             ("Out", "out_ShouldSend", "x:Boolean", "shouldSend"),
             ("Out", "out_Summary", "x:String", "summary"),
         ], name="Invoke Code - compose the alert")
-        + if_('Convert.ToString(in_Config("AlertMode")).Trim().ToUpperInvariant() = "SMTP" AndAlso shouldSend',
-              sequence("Send over SMTP", send_smtp_mail()),
-              sequence("Written to disk",
-                       log('"[ALERT] AlertMode is not SMTP - the composed message was written to '
-                           'disk instead of sent. Set AlertMode=SMTP in Config.xlsx to deliver it."')),
-              name="If - deliver over SMTP")
-        + log('"[ALERT] " & summary'),
+        + log('"[ALERT] " & summary')
+        # The .eml above is always written: it is the archived copy of what was said.
+        # AlertMode lists the channels it is also delivered through.
+        + if_("shouldSend",
+              sequence("Deliver",
+                       if_(_channel("SMTP"),
+                           sequence("Send over SMTP",
+                                    send_smtp_mail()
+                                    + log('"[ALERT] Sent over SMTP via " & Convert.ToString(in_Config("SmtpHost")) '
+                                          '& ":" & Convert.ToString(in_Config("SmtpPort"))')),
+                           name="If - SMTP channel")
+                       + if_(_channel("WEBHOOK"),
+                             sequence("Post to the webhook",
+                                      invoke_code(WEBHOOK_PAYLOAD_CODE, [
+                                          ("In", "in_Config", DICT_SO, "in_Config"),
+                                          ("In", "in_dtExceptions", "sd:DataTable", "in_dtExceptions"),
+                                          ("In", "in_Stats", DICT_SO, "in_Stats"),
+                                          ("In", "in_Subject", "x:String", "subject"),
+                                          ("Out", "out_Payload", "x:String", "payload"),
+                                          ("Out", "out_Format", "x:String", "webhookFormat"),
+                                      ], name="Invoke Code - build the webhook payload")
+                                      + f'<ui:HttpClient DisplayName="{lit("HTTP Request - POST webhook")}" '
+                                        f'EndPoint="{vb(WEBHOOK_URL_EXPR)}" Method="POST" '
+                                        f'Body="{vb("payload")}" BodyFormat="application/json" '
+                                        f'AcceptFormat="ANY" TimeoutMS="{vb("30000")}" '
+                                        f'Result="{vb("webhookResponse")}" StatusCode="{vb("webhookStatus")}" />'
+                                      + if_("webhookStatus >= 200 AndAlso webhookStatus < 300",
+                                            log('"[ALERT] Posted " & webhookFormat & " webhook, HTTP " '
+                                                '& webhookStatus.ToString()'),
+                                            log('"[ALERT] Webhook returned HTTP " & webhookStatus.ToString() '
+                                                '& ": " & webhookResponse', level="Warn"),
+                                            name="If - webhook accepted")),
+                             name="If - WEBHOOK channel")),
+              sequence("Nothing to deliver",
+                       log('"[ALERT] No anomalies - nothing to deliver."')),
+              name="If - anything to deliver"),
         variables(("x:String", "subject"), ("x:String", "htmlBody"),
-                  ("x:Boolean", "shouldSend"), ("x:String", "summary")))
+                  ("x:Boolean", "shouldSend"), ("x:String", "summary"),
+                  ("x:String", "payload"), ("x:String", "webhookFormat"),
+                  ("x:String", "webhookResponse"), ("x:Int32", "webhookStatus")))
 
     return workflow("09_Alert_Email", body, members=[
         ("in_Config", f"InArgument({DICT_SO})"),

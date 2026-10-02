@@ -86,8 +86,13 @@ $startedAt = Get-Date
 $args = @("execute", "--file", $pkg.FullName)
 if ($Entry) { $args += @("--entry", $Entry); Write-Host "  entry point: $Entry" }
 
+# A failing job makes UiRobot write to stderr, which under ErrorActionPreference=Stop
+# would throw here and hide the job's own error. Report it through the exit code and
+# the execution log instead - that is what callers check.
+$ErrorActionPreference = "Continue"
 $runOut = & $UiRobot @args 2>&1 | Out-String
 $exit = $LASTEXITCODE
+$ErrorActionPreference = "Stop"
 if ($runOut.Trim()) { Write-Host $runOut.Trim() }
 if ($exit -eq 0) { Write-Host "  Exit code 0" -ForegroundColor Green }
 else             { Write-Host "  Exit code $exit" -ForegroundColor Red }
