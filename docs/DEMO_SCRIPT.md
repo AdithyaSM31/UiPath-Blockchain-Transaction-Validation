@@ -40,8 +40,9 @@ Two people talking over one screen reads as unprepared.
 powershell -File "tools\run_all_checks.ps1"
 ```
 
-Expect `12/12 checks passed` (that includes `7/7 test cases passed`). If anything is red,
-fix it before the room fills. Budget about six minutes for the run.
+Expect `16/16 checks passed` (that includes `10/10 test cases passed`). If anything is red,
+fix it before the room fills. Budget about fifteen minutes for the run, and don't touch
+the mouse near the end — the last check answers a reviewer dialog on screen.
 
 Then reset to a clean state so the audit-log line counts are easy to narrate:
 
@@ -150,8 +151,9 @@ the finding. Choose **REJECTED**. The run continues.
 
 **Set `EscalationMode` back to `SIMULATE`** afterwards.
 
-> ⚠️ This is the one path not covered by the automated suite — a dialog can't be verified
-> headlessly. Rehearse it at least once.
+This path is covered by `tools\dialog_test.ps1`, which answers the dialog through Windows UI
+Automation and checks the decision lands in the audit chain. Still rehearse it once by hand —
+the examiner will watch you click, not the script.
 
 ### 5.3 Any blockchain (45s)
 
@@ -159,9 +161,17 @@ the finding. Choose **REJECTED**. The run continues.
 powershell -File "tools\chain_swap_demo.ps1"
 ```
 
-> "Same bot, run against Ethereum and then Polygon. Identical results. The only thing that
-> changed was a chain ID and an endpoint — because extraction normalises every explorer
-> response to one internal schema before validation ever sees it."
+It runs three times: Ethereum, Polygon, and a ledger export with a completely different
+shape. All three end `total=48 pass=40 warn=1 fail=7`.
+
+> "Same bot, three sources, identical results. The third one is the interesting one — it has
+> different field names, the block number is nested and in hex, timestamps are ISO text, and
+> it contains transactions that aren't ours at all. We onboarded it by adding rows to two
+> sheets in `Config.xlsx`. No workflow knows any source's field names."
+
+Then open the `FieldMapping` sheet and point at the `LEDGER_EXPORT` rows. Point at the run's
+`[NORMALISE]` line: *"52 records, 48 decoded, 2 value transfers ignored, 1 call to another
+function ignored, 1 malformed and skipped"* — noise is counted, not mistaken for fraud.
 
 ### 5.4 Tamper-evident audit trail (90s) — *the strongest moment*
 
@@ -193,12 +203,14 @@ then restores the file and verifies clean again.
 
 ## 5.5 · Tests (30s) — optional, strong if there's time
 
-Open the **Test** tab in Studio and run all tests. Seven go green.
+Open the **Test** tab in Studio and run all tests. Ten go green.
 
-> "Six of these drive one validation rule each against fixtures built in the test, so a
-> failure points at exactly one rule. The seventh writes an audit chain, tampers with it,
-> and asserts the tampering is caught. One of them found a real bug while I was writing
-> it — the duplicate rule assumed a transaction hash was at least twelve characters."
+> "Six of these drive one validation rule each, so a failure points at exactly one rule. The
+> seventh tampers with an audit chain and asserts it's caught. The last three test the
+> mapping engine — TC08 feeds it a made-up format whose field names appear nowhere in our
+> config, to prove the engine has no built-in knowledge of any source. One of them found a
+> real bug while I was writing it — the duplicate rule assumed a transaction hash was at
+> least twelve characters."
 
 ---
 
@@ -212,10 +224,18 @@ powershell -File "build.ps1" -Set @{ RunMode = "DISPATCH" }
 > 48 transactions become 12 work items processed in parallel. Shipment, not transaction,
 > because three of the six rules compare events against each other."
 
-Show `Data\Output\Reports\QueueDryRun\queue_payloads_*.json`.
+Show `Data\Output\Reports\QueueDryRun\queue_payloads_*.json`. Then run the other half:
 
-Be straight about status: the dispatcher's logic is tested; the Orchestrator queue activities
-themselves have not been run against a live tenant.
+```bash
+powershell -File "build.ps1" -Entry "Workflows\Queue\Performer.xaml"
+```
+
+> "That's the Performer — its own entry point, the way Orchestrator would start it from a
+> queue trigger. It consumed the twelve payloads and reached exactly the same verdict as the
+> single batch run."
+
+Be straight about status: the whole dispatch-and-perform path is tested in dry-run; only the
+three activities that talk to a live Orchestrator queue have not been run against a tenant.
 
 ---
 
@@ -223,8 +243,9 @@ themselves have not been run against a live tenant.
 
 > "Automated reconciliation of blockchain records against enterprise systems, six configurable
 > rules, human escalation where it matters, and an audit trail that proves it wasn't altered
-> afterwards. The whole thing is verified by a twelve-check acceptance suite that runs in one
-> command, and the bot writes its own dashboard."
+> afterwards. Onboarding a new chain is a spreadsheet change. The whole thing is verified by a
+> sixteen-check acceptance suite that runs in one command, and the bot writes its own dashboard
+> and a PDF audit report."
 
 ---
 
@@ -270,20 +291,32 @@ real keccak-256 function selectors, and correctly ABI-encoded call data in an au
 Etherscan V2 response envelope. `API` mode against the live chain uses the same parser.
 
 **"Where are the tests?"**
-Seven UiPath test cases in the Test tab — six drive one rule each against hand-built
-fixtures, the seventh writes an audit chain, tampers with it and asserts detection. They
-cover edge cases the sample data doesn't: a drift exactly at the tolerance boundary, a
-checksummed address against a lower-case whitelist, the same hash on two shipments. One of
-them found a real bug while being written — R4 assumed a hash was at least 12 characters
-and crashed on a malformed one.
+Ten UiPath test cases in the Test tab — six drive one rule each against hand-built fixtures,
+one tampers with an audit chain and asserts detection, and three test the mapping engine:
+every transform, malformed input, and the lookup mode. They cover edge cases the sample data
+doesn't: a drift exactly at the tolerance boundary, a checksummed address against a
+lower-case whitelist, the same hash on two shipments, truncated call data. One of them found
+a real bug while being written — R4 assumed a hash was at least 12 characters and crashed on
+a malformed one. Beyond those, `integration_tests.ps1` checks what actually goes out over the
+network — the API request, the email, the Teams and Slack messages — against local test
+servers, and `dialog_test.ps1` answers the reviewer dialog through UI Automation.
+
+**"How would you add a new blockchain?"**
+If it has an Etherscan-style explorer: change `ChainId`, nothing else. If its export looks
+different: add a row to `ChainProfiles` saying where the records are, and rows to
+`FieldMapping` saying which field becomes which, with a transform. That's how the ledger
+export in the chain-swap demo was onboarded. If its payload can't be decoded at all, set
+`MappingMode = LOOKUP` and the logistics system's own transaction map decides which shipment
+each transaction belongs to.
 
 **"What doesn't work?"**
-Three things. The Orchestrator queue activities have never run against a live queue — the
-package is published and the dispatcher's logic is tested in dry-run, but `Add Queue Item`
-and `Get Transaction Item` are unexercised. `WEB` mode parses the explorer's HTML rather
-than driving a browser, because UIAutomation 25.10 dropped the classic scraping activity
-and the browser extension isn't installed. And the reviewer dialog has only been run in
-simulated mode, since a dialog can't be tested headlessly. All listed under "Known gaps" in
-the README.
+Three things, all about live external systems. The Orchestrator queue activities have never
+run against a live queue — the package is published and the whole dispatch-and-perform path
+is tested in dry-run, but `Add Queue Item`, `Get Transaction Item` and `Set Transaction
+Status` are unexercised. `API` mode has only been run against a local test server that
+speaks Etherscan's protocol, because we haven't configured a real API key. And `WEB` mode
+parses the explorer's HTML rather than driving a browser, because UIAutomation 25.10 dropped
+the classic scraping activity and the browser extension isn't installed. All listed under
+"Known gaps" in the README.
 
 *Give that answer plainly if asked. Knowing precisely what isn't finished reads as competence.*

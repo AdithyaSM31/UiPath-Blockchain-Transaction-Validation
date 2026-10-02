@@ -30,7 +30,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from xamlgen import (  # noqa: E402
-    assign, if_, invoke_code, invoke_workflow, lit, log, sequence, throw,
+    try_catch, assign, if_, invoke_code, invoke_workflow, lit, log, sequence, throw,
     variables, vb, workflow,
 )
 
@@ -414,6 +414,285 @@ out_Done = True
                       ("x:String", "chainReport"), ("x:Boolean", "tampered")))
 
 
+
+# --------------------------------------------------------------------------
+# Shared fixtures for the normaliser tests
+# --------------------------------------------------------------------------
+SAMPLE_CALLDATA = "0x54201e35000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000001f400000000000000000000000000000000000000000000000000000000000000a000000000000000000000000000000000000000000000000000000000000000085348502d313030310000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008504f2d3838303031000000000000000000000000000000000000000000000000"
+
+# Two profiles with field names that appear NOWHERE in the shipped Config.xlsx, so a
+# pass proves the engine knows nothing about any particular source.
+NORMALISER_TABLES = r"""
+Dim m As New DataTable("FieldMapping")
+For Each c As String In New String() {"Profile", "BlockchainField", "LogisticsField", "TransformType"}
+    m.Columns.Add(c, GetType(String))
+Next
+' NESTED: nested paths, hex numbers, ISO time, a JSON boolean, selector from call data.
+m.Rows.Add("NESTED", "id", "TxHash", "LOWERCASE")
+m.Rows.Add("NESTED", "blk.n", "BlockNumber", "HEX_TO_INTEGER")
+m.Rows.Add("NESTED", "at", "EventTimestampUtc", "ISO_TO_DATETIME")
+m.Rows.Add("NESTED", "by", "SenderAddress", "LOWERCASE")
+m.Rows.Add("NESTED", "data", "EventSelector", "SELECTOR")
+m.Rows.Add("NESTED", "data:arg0", "ShipmentID", "ABI_STRING")
+m.Rows.Add("NESTED", "data:arg1", "OnChainQty", "ABI_UINT256")
+m.Rows.Add("NESTED", "data:arg2", "PONumber", "ABI_STRING")
+m.Rows.Add("NESTED", "failed", "TxFailed", "BOOLEAN")
+' FLAT: decimal numbers, epoch seconds, a selector field, a 0/1 flag.
+m.Rows.Add("FLAT", "h", "TxHash", "LOWERCASE")
+m.Rows.Add("FLAT", "b", "BlockNumber", "INTEGER")
+m.Rows.Add("FLAT", "t", "EventTimestampUtc", "EPOCH_TO_DATETIME")
+m.Rows.Add("FLAT", "f", "SenderAddress", "LOWERCASE")
+m.Rows.Add("FLAT", "sel", "EventSelector", "LOWERCASE")
+m.Rows.Add("FLAT", "cd:arg0", "ShipmentID", "ABI_STRING")
+m.Rows.Add("FLAT", "cd:arg1", "OnChainQty", "ABI_UINT256")
+m.Rows.Add("FLAT", "err", "TxFailed", "BOOLEAN")
+
+Dim p As New DataTable("ChainProfiles")
+For Each c As String In New String() {"Profile", "RecordsPath", "StatusField", "StatusOkValue"}
+    p.Columns.Add(c, GetType(String))
+Next
+p.Rows.Add("NESTED", "export.items", "", "")
+p.Rows.Add("FLAT", "rows", "ok", "yes")
+
+Dim g As New DataTable("EventSignatures")
+g.Columns.Add("EventName", GetType(String))
+g.Columns.Add("MethodId", GetType(String))
+g.Rows.Add("Dispatched", "0x54201e35")
+g.Rows.Add("Delivered", "0xae7b1f50")
+
+out_dtMapping = m
+out_dtProfiles = p
+out_dtSignatures = g
+""".strip()
+
+TABLE_OUTS = [
+    ("Out", "out_dtMapping", "sd:DataTable", "dtMapping"),
+    ("Out", "out_dtProfiles", "sd:DataTable", "dtProfiles"),
+    ("Out", "out_dtSignatures", "sd:DataTable", "dtSignatures"),
+]
+TABLE_VARS = (("sd:DataTable", "dtMapping"), ("sd:DataTable", "dtProfiles"),
+              ("sd:DataTable", "dtSignatures"), ("sd:DataTable", "dtChain"),
+              ("x:String", "json"), ("x:String", "summary"), ("x:String", "errorText"))
+
+
+def normalise(profile: str) -> str:
+    return invoke_workflow("Workflows\\01m_Normalise_ChainRecords.xaml", [
+        ("In", "in_JsonText", "x:String", "json"),
+        ("In", "in_Profile", "x:String", f'"{profile}"'),
+        ("In", "in_SourceMode", "x:String", '"TEST"'),
+        ("In", "in_LookupMode", "x:Boolean", "False"),
+        ("In", "in_dtMapping", "sd:DataTable", "dtMapping"),
+        ("In", "in_dtSignatures", "sd:DataTable", "dtSignatures"),
+        ("In", "in_dtProfiles", "sd:DataTable", "dtProfiles"),
+        ("Out", "out_dtChain", "sd:DataTable", "dtChain"),
+        ("Out", "out_Summary", "x:String", "summary"),
+    ], name=f"Invoke 01m - profile {profile}")
+
+
+def cell(col: str, row: int = 0) -> str:
+    return f'dtChain.Rows({row})("{col}")'
+
+
+# --------------------------------------------------------------------------
+# TC08 - every conversion the field-mapping engine offers
+# --------------------------------------------------------------------------
+def tc08() -> str:
+    build_nested = invoke_code("""
+' Mixed-case hash and sender, so LOWERCASE is observable.
+Dim rec As New JObject()
+rec("id") = "0x031CB4C9F4B810639F883327F2156740285E345C8B2D09A4088E19161D8E6CB1"
+rec("blk") = New JObject(New JProperty("n", "0x1474d10"))
+rec("at") = "2026-09-01T06:00:00Z"
+rec("by") = "0x85EBC61D67700CCa8b0C35f9fF9F92d62A93eb68"
+rec("data") = "{{SAMPLE_CALLDATA}}"
+rec("failed") = False
+out_Json = New JObject(New JProperty("export", New JObject(New JProperty("items", New JArray(rec))))).ToString()
+""".strip().replace("{{SAMPLE_CALLDATA}}", SAMPLE_CALLDATA), [("Out", "out_Json", "x:String", "json")],
+        name="Invoke Code - one nested record")
+
+    build_flat = invoke_code("""
+Dim rec As New JObject()
+rec("h") = "0xABC"
+rec("b") = "21450000"
+rec("t") = "1788242400"
+rec("f") = "0xFFFF"
+rec("sel") = "0x54201E35"
+rec("cd") = "{{SAMPLE_CALLDATA}}"
+rec("err") = "1"
+out_Json = New JObject(New JProperty("ok", "yes"), New JProperty("rows", New JArray(rec))).ToString()
+""".strip().replace("{{SAMPLE_CALLDATA}}", SAMPLE_CALLDATA), [("Out", "out_Json", "x:String", "json")],
+        name="Invoke Code - one flat record")
+
+    expected_time = 'New DateTime(2026, 9, 1, 6, 0, 0, DateTimeKind.Utc)'
+    steps = (
+        invoke_code(NORMALISER_TABLES, TABLE_OUTS, name="Invoke Code - mapping, profile and signature tables")
+        + build_nested + normalise("NESTED")
+        + verify("dtChain.Rows.Count = 1", "nested record decodes")
+        + verify(f'Convert.ToString({cell("TxHash")}) = "0x031cb4c9f4b810639f883327f2156740285e345c8b2d09a4088e19161d8e6cb1"',
+                 "LOWERCASE on the hash")
+        + verify(f'Convert.ToInt64({cell("BlockNumber")}) = 21450000', "HEX_TO_INTEGER from a nested path")
+        + verify(f'Convert.ToDateTime({cell("EventTimestampUtc")}) = {expected_time}', "ISO_TO_DATETIME")
+        + verify(f'Convert.ToString({cell("EventSelector")}) = "0x54201e35"', "SELECTOR derived from call data")
+        + verify(f'Convert.ToString({cell("ShipmentID")}) = "SHP-1001"', "ABI_STRING argument 0")
+        + verify(f'Convert.ToInt64({cell("OnChainQty")}) = 500', "ABI_UINT256 argument 1")
+        + verify(f'Convert.ToString({cell("PONumber")}) = "PO-88001"', "ABI_STRING argument 2")
+        + verify(f'Convert.ToBoolean({cell("TxFailed")}) = False', "BOOLEAN from a JSON false")
+        + build_flat + normalise("FLAT")
+        + verify(f'Convert.ToInt64({cell("BlockNumber")}) = 21450000', "INTEGER from a decimal string")
+        + verify(f'Convert.ToDateTime({cell("EventTimestampUtc")}) = {expected_time}', "EPOCH_TO_DATETIME")
+        + verify(f'Convert.ToString({cell("EventSelector")}) = "0x54201e35"', "LOWERCASE on a selector field")
+        + verify(f'Convert.ToBoolean({cell("TxFailed")}) = True', "BOOLEAN from the string 1")
+        + verify(f'IsDBNull({cell("PONumber")})', "an unmapped field is null, not invented"))
+    return test_case("TC08_FieldMapping_Engine", "TC08 field-mapping engine", steps, TABLE_VARS)
+
+
+# --------------------------------------------------------------------------
+# TC09 - records the engine must refuse, and configuration it must reject
+# --------------------------------------------------------------------------
+def tc09() -> str:
+    build = invoke_code("""
+Dim good As New JObject()
+good("h") = "0x01" : good("b") = "1" : good("t") = "1788242400" : good("f") = "0xaa"
+good("sel") = "0x54201e35" : good("cd") = "{{SAMPLE_CALLDATA}}" : good("err") = "0"
+
+Dim transfer As JObject = CType(good.DeepClone(), JObject)
+transfer("h") = "0x02" : transfer("cd") = "0x"
+
+' approve(address,uint256) - a real selector, but not one of this contract's functions.
+Dim unrelated As JObject = CType(good.DeepClone(), JObject)
+unrelated("h") = "0x03" : unrelated("cd") = "0x095ea7b3" & New String("0"c, 128)
+
+' A known selector whose call data stops after one word.
+Dim truncated As JObject = CType(good.DeepClone(), JObject)
+truncated("h") = "0x04" : truncated("cd") = "0xae7b1f50" & New String("0"c, 62) & "60"
+
+Dim arr As New JArray(good, transfer, unrelated, truncated, New JValue(42))
+out_Json = New JObject(New JProperty("ok", "yes"), New JProperty("rows", arr)).ToString()
+""".strip().replace("{{SAMPLE_CALLDATA}}", SAMPLE_CALLDATA), [("Out", "out_Json", "x:String", "json")],
+        name="Invoke Code - one good record and four bad ones")
+
+    def expect_config_error(label: str, mutate_vb: str, must_contain: str) -> str:
+        mutate = invoke_code(mutate_vb, [("InOut", "io_dtMapping", "sd:DataTable", "dtMapping")],
+                             name=f"Invoke Code - {label}")
+        attempt = try_catch(
+            sequence("Expect a configuration error",
+                     normalise("FLAT") + assign("errorText", '"(no error raised)"')),
+            assign("errorText", "exception.ToString()"),
+            name=f"Try Catch - {label}")
+        return (invoke_code(NORMALISER_TABLES, TABLE_OUTS, name="Invoke Code - fresh tables")
+                + mutate + attempt
+                + verify(f'errorText.Contains("{must_contain}")', f"rejected: {label}"))
+
+    steps = (
+        invoke_code(NORMALISER_TABLES, TABLE_OUTS, name="Invoke Code - mapping, profile and signature tables")
+        + build + normalise("FLAT")
+        + verify("dtChain.Rows.Count = 1", "only the well-formed logistics call is kept")
+        + verify(f'Convert.ToString({cell("TxHash")}) = "0x01"', "and it is the right one")
+        + verify('summary.Contains("5 record(s)")', "every record was looked at")
+        + verify('summary.Contains("1 value transfer(s) ignored")', "a value transfer is ignored")
+        + verify('summary.Contains("1 call(s) to other functions ignored")', "an unrelated call is ignored")
+        + verify('summary.Contains("2 malformed and skipped")', "truncated call data and a non-object are skipped")
+        + expect_config_error("an unknown transform",
+                              'For Each r As DataRow In io_dtMapping.Rows\n'
+                              '    If Convert.ToString(r("BlockchainField")) = "b" Then r("TransformType") = "BASE64"\n'
+                              'Next',
+                              "unknown TransformType")
+        + expect_config_error("a missing required field",
+                              'For Each r As DataRow In io_dtMapping.Select("BlockchainField = \'h\'")\n'
+                              '    io_dtMapping.Rows.Remove(r)\n'
+                              'Next',
+                              "has no row for: TxHash"))
+    return test_case("TC09_Normaliser_Hardening", "TC09 normaliser hardening", steps, TABLE_VARS)
+
+
+# --------------------------------------------------------------------------
+# TC10 - MappingMode LOOKUP overrides what the call data says
+# --------------------------------------------------------------------------
+def tc10() -> str:
+    tables = invoke_code("""
+Dim t0 As New DateTime(2026, 9, 1, 6, 0, 0, DateTimeKind.Utc)
+
+' The chain says SHP-WRONG / Delivered. The logistics system's map disagrees.
+Dim ch As New DataTable("Chain")
+For Each c As String In New String() {"TxHash", "EventSelector", "ShipmentID", "PONumber", "SenderAddress"}
+    ch.Columns.Add(c, GetType(String))
+Next
+ch.Columns.Add("BlockNumber", GetType(Long))
+ch.Columns.Add("EventTimestampUtc", GetType(DateTime))
+ch.Columns.Add("OnChainQty", GetType(Long))
+ch.Columns.Add("TxFailed", GetType(Boolean))
+ch.Rows.Add("0xaaa", "0xae7b1f50", "SHP-WRONG", "PO-1", "0x01", 1L, t0.AddHours(1), 10L, False)
+ch.Rows.Add("0xbbb", "0xae7b1f50", "SHP-A", "PO-1", "0x01", 2L, t0.AddHours(2), 10L, False)
+
+Dim map As New DataTable("TxMap")
+For Each c As String In New String() {"TxHash", "ShipmentID", "EventName"}
+    map.Columns.Add(c, GetType(String))
+Next
+map.Rows.Add("0xAAA", "SHP-A", "InTransit")   ' upper case: lookup must not be case-sensitive
+
+Dim sh As New DataTable("Shipments")
+sh.Columns.Add("ShipmentID", GetType(String)) : sh.Columns.Add("PONumber", GetType(String))
+sh.Columns.Add("Product", GetType(String)) : sh.Columns.Add("ExpectedQty", GetType(Long))
+sh.Rows.Add("SHP-A", "PO-1", "Test product", 10L)
+
+Dim ev As New DataTable("ShipmentEvents")
+For Each c As String In New String() {"ShipmentID", "EventName", "HandlerAddress", "HandlerPartner"}
+    ev.Columns.Add(c, GetType(String))
+Next
+ev.Columns.Add("ExpectedEventTimestampUtc", GetType(DateTime))
+ev.Rows.Add("SHP-A", "InTransit", "0x01", "Partner", t0)
+
+Dim sq As New DataTable("EventSequence")
+sq.Columns.Add("StepOrder", GetType(Integer)) : sq.Columns.Add("EventName", GetType(String))
+sq.Rows.Add(1, "InTransit") : sq.Rows.Add(2, "Delivered")
+
+Dim sg As New DataTable("EventSignatures")
+sg.Columns.Add("EventName", GetType(String)) : sg.Columns.Add("MethodId", GetType(String))
+sg.Rows.Add("Delivered", "0xae7b1f50")
+
+out_Chain = ch : out_Map = map : out_Ship = sh : out_Events = ev : out_Seq = sq : out_Sig = sg
+""".strip(), [
+        ("Out", "out_Chain", "sd:DataTable", "dtChain"),
+        ("Out", "out_Map", "sd:DataTable", "dtTxMap"),
+        ("Out", "out_Ship", "sd:DataTable", "dtShipments"),
+        ("Out", "out_Events", "sd:DataTable", "dtErpEvents"),
+        ("Out", "out_Seq", "sd:DataTable", "dtSequence"),
+        ("Out", "out_Sig", "sd:DataTable", "dtSignatures"),
+    ], name="Invoke Code - chain rows, transaction map and ERP")
+
+    def join(mode: str) -> str:
+        return (assign("Config", 'New Dictionary(Of String, Object) From {{"MappingMode", "' + mode + '"}}',
+                       type_ref="scg:Dictionary(x:String, x:Object)", name=f"Assign - MappingMode {mode}")
+                + invoke_workflow("Workflows\\03_Preprocess_Map.xaml", [
+                    ("In", "in_Config", "scg:Dictionary(x:String, x:Object)", "Config"),
+                    ("In", "in_dtChain", "sd:DataTable", "dtChain"),
+                    ("In", "in_dtShipments", "sd:DataTable", "dtShipments"),
+                    ("In", "in_dtErpEvents", "sd:DataTable", "dtErpEvents"),
+                    ("In", "in_dtSequence", "sd:DataTable", "dtSequence"),
+                    ("In", "in_dtSignatures", "sd:DataTable", "dtSignatures"),
+                    ("In", "in_dtTxMap", "sd:DataTable", "dtTxMap"),
+                    ("Out", "out_dtJoined", "sd:DataTable", "dtJoined"),
+                ], name=f"Invoke 03 - {mode}"))
+
+    j = lambda col, row=0: f'Convert.ToString(dtJoined.Rows({row})("{col}"))'
+    steps = (
+        tables
+        + join("LOOKUP")
+        + verify(f'{j("ShipmentID")} = "SHP-A"', "LOOKUP: shipment comes from the map")
+        + verify(f'{j("EventName")} = "InTransit"', "LOOKUP: milestone comes from the map")
+        + verify(f'{j("MatchStatus")} = "MATCHED"', "LOOKUP: the mapped row joins to the ERP")
+        + verify(f'Not IsDBNull(dtJoined.Rows(0)("DriftHours"))', "LOOKUP: and gets an ERP timestamp to compare")
+        + verify(f'{j("MatchStatus", 1)} = "NOT_IN_TX_MAP"', "LOOKUP: an unmapped transaction is flagged")
+        + join("DECODE")
+        + verify(f'{j("ShipmentID")} = "SHP-WRONG" AndAlso {j("EventName")} = "Delivered"',
+                 "DECODE: the same row follows the call data instead")
+        + verify(f'{j("MatchStatus")} = "NO_ERP_SHIPMENT"', "DECODE: so it no longer joins"))
+    return test_case("TC10_LookupMapping", "TC10 LOOKUP mapping mode", steps,
+                     (("sd:DataTable", "dtChain"), ("sd:DataTable", "dtTxMap"),
+                      ("sd:DataTable", "dtShipments"), ("sd:DataTable", "dtErpEvents"),
+                      ("sd:DataTable", "dtSequence"), ("sd:DataTable", "dtSignatures"),
+                      ("sd:DataTable", "dtJoined"), ("scg:Dictionary(x:String, x:Object)", "Config")))
+
 # --------------------------------------------------------------------------
 GENERATORS = {
     "TC01_R1_TimestampCheck.xaml": tc01,
@@ -423,6 +702,9 @@ GENERATORS = {
     "TC05_R5_SequenceValidation.xaml": tc05,
     "TC06_R6_SmartContractEvent.xaml": tc06,
     "TC07_AuditChain_TamperEvident.xaml": tc07,
+    "TC08_FieldMapping_Engine.xaml": tc08,
+    "TC09_Normaliser_Hardening.xaml": tc09,
+    "TC10_LookupMapping.xaml": tc10,
 }
 
 

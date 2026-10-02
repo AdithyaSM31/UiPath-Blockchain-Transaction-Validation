@@ -27,7 +27,9 @@ powershell -File "tools\run_all_checks.ps1"
 ```
 
 That suite is the single source of truth for whether the project works. It currently
-reports **12/12 passing**, including the seven UiPath test cases.
+reports **16/16 passing**, including the ten UiPath test cases, the outward-path
+integration tests and the reviewer-dialog test. Add `-SkipDialog` on a machine nobody is
+watching — the last check puts a dialog on screen for a few seconds.
 
 To run just the test cases:
 
@@ -42,12 +44,12 @@ powershell -File "tools\run_tests.ps1"
 ```
 Config.xlsx ──┐
               ├──> 00 Init ──> 01 Extract chain ──> 02 Extract ERP ──> 03 Map & join
-mock/API/web ─┘                                                              │
-                                                                             v
+mock/API/web ─┘        │                                                     │
+                       └─ 01m Normalise (ChainProfiles + FieldMapping)       v
        12 Verify chain <── 10 Audit log <── 06 Escalate <── 05 Validate (R1..R6)
                  │                                                   │
                  ├──> 07 Excel report · 11 Dashboard JSON · 09 Alert <┘
-                 └──> 13 HTML dashboard
+                 └──> 13 HTML dashboard ──> 08 PDF audit report
 ```
 
 A default run processes **48 transactions across 12 shipments** and reports
@@ -76,24 +78,27 @@ BlockchainLogisticsValidator/     the UiPath project - open this in Studio
 ├── Workflows/
 │   ├── 00_Init_ReadConfig        config, validation, path resolution
 │   ├── 01_Extract_Blockchain     dispatches to 01a mock / 01b API / 01c web
-│   ├── 02_Extract_Logistics      ERP master + expected milestones
-│   ├── 03_Preprocess_Map         normalise, decode, join chain to ERP
+│   ├── 01m_Normalise_ChainRecords  the field-mapping engine: any JSON feed -> one schema
+│   ├── 02_Extract_Logistics      ERP master + expected milestones (+ tx map in LOOKUP)
+│   ├── 03_Preprocess_Map         join chain to ERP, by decoded payload or by tx map
 │   ├── 05_Validate_Engine        runs the enabled rules from Config.xlsx
 │   │   └── Rules/R1..R6          one workflow per rule
 │   ├── 06_HumanInTheLoop_Escalation
 │   ├── 07_Report_Excel           styled workbook with conditional formatting
-│   ├── 09_Alert_Email            composes the anomaly alert
+│   ├── 08_Report_PDF             formal audit report, printed by headless Edge
+│   ├── 09_Alert_Email            composes the alert; EML / SMTP / Teams-Slack webhook
 │   ├── 10_AuditLog_Chained       hash-chained audit trail
 │   ├── 11_Dashboard_Summary      KPI JSON for Power BI / Sheets
 │   ├── 12_Verify_AuditChain      standalone integrity check
 │   ├── 13_Report_Dashboard       self-contained HTML dashboard
-│   └── Queue/Dispatcher,Performer  Orchestrator queue mode
+│   └── Queue/                    Dispatcher, Performer (own entry point), ProcessShipment
+├── Tests/TC01..TC10              UiPath test cases (Test Explorer)
 ├── Data/
 │   ├── Config.xlsx               the control panel - see below
 │   ├── Input/                    ERP workbook, tx map, mock chain feeds
 │   └── Output/                   reports, audit logs (generated)
 build.ps1                         pack + analyze + run headlessly
-tools/                            data generator, oracle, demo scripts, acceptance suite
+tools/                            data generator, oracle, test doubles, demo scripts, acceptance suite
 docs/                             plan, runbook, demo script, results
 ```
 
@@ -108,7 +113,8 @@ Everything operational lives here, so the bot adapts without touching a workflow
 | `Settings` | Data source mode, chain id, API endpoint and key, file paths, escalation, alerting, queue |
 | `ValidationRules` | Which rules run, their severity, thresholds and fail action |
 | `ApprovedWallets` | The partner whitelist R3 checks against |
-| `FieldMapping` | Blockchain field → logistics field, with the transform applied |
+| `ChainProfiles` | Per source: where the records sit in the JSON and how it reports success |
+| `FieldMapping` | Per profile: source field → canonical field, with the transform applied |
 | `EventSequence` | The milestone order R5 enforces, and each one's function selector |
 | `EventSignatures` | Function signatures, selectors and event topic hashes |
 
@@ -116,12 +122,21 @@ Settings worth knowing:
 
 - **`DataSourceMode`** — `MOCK` (default, offline), `API` (live Etherscan V2), `WEB`
   (scrapes an explorer page). All three produce byte-identical validation results.
+- **`ChainProfile`** — which `ChainProfiles` row describes the feed. `ETHERSCAN` (default)
+  or `LEDGER_EXPORT`, which has different field names, nesting, hex block numbers and ISO
+  timestamps. A new chain or export format is a new profile, not a new workflow.
+- **`MappingMode`** — `DECODE` takes shipment and milestone from the transaction's ABI call
+  data; `LOOKUP` takes them from `TxShipmentMap.xlsx`, for ledgers whose payload the bot
+  cannot decode.
 - **`RunMode`** — `BATCH` validates everything in one job; `DISPATCH` splits it into one
-  Orchestrator queue item per shipment.
+  Orchestrator queue item per shipment, which `Workflows\Queue\Performer.xaml` consumes.
 - **`EscalationMode`** — `PROMPT` asks a reviewer (attended only), `SIMULATE` applies a preset
   decision, `AUTO_LOG` defers. `PROMPT` automatically downgrades to `AUTO_LOG` when
   `AttendedMode` is false, so an unattended job can never hang on a dialog.
-- **`AlertMode`** — `EML` writes the composed message to disk (default), `SMTP` actually sends.
+- **`AlertMode`** — comma-separated channels: `EML` (archive only, default), `SMTP`,
+  `WEBHOOK` (Teams Adaptive Card, Slack Block Kit or plain JSON, per `AlertWebhookFormat`).
+  The `.eml` copy is always written.
+- **`PdfReportEnabled`** — prints the formal audit report to PDF with headless Edge or Chrome.
 
 ### Local overrides
 
@@ -133,11 +148,19 @@ and safe to hand in. `build.ps1` writes it automatically.
 
 ## Notable design decisions
 
-**Extraction normalises; nothing downstream knows the source.** The mock reader, the live
-Etherscan reader and the web scraper all emit one identical `DataTable` schema. That is what
-makes the bot genuinely blockchain-agnostic rather than merely configurable — proven by
-`tools\chain_swap_demo.ps1`, which produces byte-identical validation results on Ethereum and
-Polygon with no workflow change.
+**Extraction only fetches; one engine normalises, driven by Excel.** The mock reader, the
+live Etherscan reader and the web scraper each just produce JSON. `01m_Normalise_ChainRecords`
+turns any of it into one canonical `DataTable`, reading *where* the records are from
+`ChainProfiles` and *how* each field is derived from `FieldMapping` — ten transforms, including
+hex and epoch conversion and ABI decoding of `string` / `uint256` arguments. No source field
+name appears in any workflow. That is what makes the bot blockchain-agnostic rather than
+merely configurable — proven by `tools\chain_swap_demo.ps1`, which reaches the same verdict on
+Ethereum, Polygon and a differently-shaped ledger export with no workflow change.
+
+**Real ledgers contain noise, and noise is not an anomaly.** Value transfers, calls to other
+contracts and malformed records are counted and set aside before decoding, with a summary
+line saying how many of each. Every ABI offset and length is bounds-checked, so one corrupt
+record is reported by hash rather than taking the run down.
 
 **Rules are set-based, not row-based.** Each rule is its own workflow but receives the whole
 results table. Duplicates (R4), ordering (R5) and required events (R6) compare rows against
@@ -172,8 +195,10 @@ is produced identically on an unattended robot with no Office installed.
 | `tools\run_all_checks.ps1` | Everything below, in one command |
 | `tools\verify_seeded_data.py` | Independent oracle: the anomalies exist and the ABI decodes |
 | `tools\tamper_test.ps1` | Editing the audit log is detected at the exact line |
-| `tools\chain_swap_demo.ps1` | Identical results across two blockchains, config change only |
-| `tools\run_tests.ps1` | The seven UiPath test cases |
+| `tools\chain_swap_demo.ps1` | Identical results across two blockchains and a ledger export, config change only |
+| `tools\run_tests.ps1` | The ten UiPath test cases |
+| `tools\integration_tests.ps1` | Etherscan API (chains 1 and 137), SMTP, Teams and Slack webhooks, bad key, empty contract, WEB over HTTP — against local test doubles |
+| `tools\dialog_test.ps1` | The `PROMPT` reviewer dialog, answered through Windows UI Automation |
 | `build.ps1 -Analyze` | UiPath Workflow Analyzer, no Error-severity findings |
 
 The dataset oracle is a deliberately separate implementation from the generator. If the bot
@@ -197,10 +222,16 @@ script's `GENERATORS` map**, or the next run will overwrite your changes.
 
 ## Testing
 
-Seven UiPath test cases live in `Tests/` and appear in Studio's **Test Explorer**
-(Test tab → Run All Tests). Six drive one validation rule each against a hand-built
-fixture; the seventh is an integration test that writes an audit chain, tampers with it,
-and asserts the tampering is detected.
+Ten UiPath test cases live in `Tests/` and appear in Studio's **Test Explorer**
+(Test tab → Run All Tests).
+
+| Test | Covers |
+|---|---|
+| TC01–TC06 | One validation rule each, against a hand-built fixture |
+| TC07 | Audit chain: write, verify, tamper, detect at the right line |
+| TC08 | The field-mapping engine, on two invented feeds whose field names appear nowhere in the shipped config — every transform asserted |
+| TC09 | Normaliser hardening: transfers, foreign calls, truncated call data and non-objects are set aside; an unknown transform or a missing required field is rejected by name |
+| TC10 | `MappingMode = LOOKUP`: the transaction map overrides the call data, case-insensitively; unmapped transactions are flagged |
 
 They are unit tests, not a replay of the sample data — they cover edge cases the sample
 data does not: a drift exactly at the tolerance boundary, a quantity tolerance that
@@ -217,12 +248,15 @@ assertion failed, so a regression is also visible as a non-zero exit code in CI.
 
 ## Known gaps
 
-- **Orchestrator queue activities are untested against a live tenant.** `Dispatcher` and
-  `Performer` compile and the dispatcher is fully exercised in `DRYRUN` mode (48
-  transactions → 12 payloads), but `Add Queue Item` / `Get Transaction Item` have never run
-  against a real queue. See [docs/ORCHESTRATOR_RUNBOOK.md](docs/ORCHESTRATOR_RUNBOOK.md).
-- **`EscalationMode = PROMPT` has not been executed**, only `SIMULATE` and `AUTO_LOG`. The
-  dialog blocks on a desktop, so it cannot be verified headlessly — run it from Studio.
+- **Orchestrator queue activities are untested against a live tenant.** The whole
+  dispatch → perform path runs in `DRYRUN`: `Dispatcher` writes 12 shipment payloads and
+  `Performer`, started as its own entry point, consumes them and reaches the same
+  `total=48 pass=40 warn=1 fail=7` as a batch run. Only the three activities that talk to
+  Orchestrator — `Add Queue Item`, `Get Transaction Item`, `Set Transaction Status` — have
+  never run against a real queue. See [docs/ORCHESTRATOR_RUNBOOK.md](docs/ORCHESTRATOR_RUNBOOK.md).
+- **API mode has not been run against the real Etherscan.** It is exercised over HTTP
+  against a local Etherscan V2 test double (`tools\mock_services.py`), including error
+  responses, but no API key is configured.
 - **WEB mode parses the explorer's HTML rather than driving a browser.** It works and is
   covered by the acceptance suite, but it is not UiPath Data Scraping: UIAutomation 25.10
   removed the classic `ExtractStructuredData`, its replacement needs recorder-generated

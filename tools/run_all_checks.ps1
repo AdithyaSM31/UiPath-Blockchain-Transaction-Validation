@@ -10,14 +10,23 @@
         4. Rule toggle          - a rule disabled in Excel is skipped (Novelty 1)
         5. HTML dashboard       - a self-contained dashboard is produced each run
         6. Escalation           - a CRITICAL anomaly is captured (Novelty 2)
-        7. Chain swap           - identical results on a second network (Novelty 3)
+        7. Chain swap           - identical results on a second network and on a
+                                  ledger export with a different schema (Novelty 3)
         8. Tamper evidence      - an edited audit log is detected (Novelty 4)
         9. WEB mode             - explorer-page scraping reaches the same result
-       10. UiPath test cases    - 7 unit/integration tests via VerifyExpression
-       11. Dispatch mode        - the run splits into per-shipment queue payloads
+       10. UiPath test cases    - 10 unit/integration tests via VerifyExpression
+       11. Dispatch -> Perform  - the run splits per shipment, and the Performer
+                                  consuming those payloads reaches the same verdict
+       12. LOOKUP mapping       - the logistics system's transaction map, not the
+                                  call data, decides shipment and milestone
+       13. Outward paths        - Etherscan API, SMTP, Teams/Slack webhooks and WEB
+                                  over HTTP, against local test doubles
+       14. Reviewer dialog      - the PROMPT dialog answered via UI Automation
 
     Run:  powershell -File tools\run_all_checks.ps1
+          add -SkipDialog on a machine nobody is watching: the last check puts a dialog on screen.
 #>
+param([switch]$SkipDialog)
 $ErrorActionPreference = "Stop"
 
 $Root       = Split-Path $PSScriptRoot -Parent
@@ -113,8 +122,9 @@ Add-Result "CRITICAL anomaly escalated (Novelty 2)" `
 
 # --- 7. Chain swap (Novelty 3) --------------------------------------------
 $swap = & (Join-Path $PSScriptRoot "chain_swap_demo.ps1") 6>&1 2>&1 | Out-String
-Add-Result "Identical result on a second chain (Novelty 3)" `
-    ($swap -match "Chain agnosticism demonstrated") "Ethereum and Polygon, config change only"
+Add-Result "Identical result on a second chain and a ledger export (Novelty 3)" `
+    ($swap -match "Chain agnosticism demonstrated") `
+    (($swap -split "`n" | Where-Object { $_ -match "\[NORMALISE\].*LEDGER_EXPORT" } | Select-Object -First 1) -replace '^\s+', '')
 
 # --- 8. Tamper evidence (Novelty 4) ---------------------------------------
 $tamper = & (Join-Path $PSScriptRoot "tamper_test.ps1") 6>&1 2>&1 | Out-String
@@ -131,8 +141,8 @@ Add-Result "WEB mode scrapes the explorer page to the same result" `
 # --- 10. UiPath test cases --------------------------------------------------
 $tests = & (Join-Path $PSScriptRoot "run_tests.ps1") 6>&1 2>&1 | Out-String
 $testLine = ($tests -split "`n" | Where-Object { $_ -match "test cases passed" } | Select-Object -First 1)
-Add-Result "UiPath test cases (7 rule/integration tests)" `
-    ($tests -match "7/7 test cases passed") $testLine.Trim()
+Add-Result "UiPath test cases (10 rule/normaliser/integration tests)" `
+    ($tests -match "10/10 test cases passed") $testLine.Trim()
 
 # --- 11. Dispatch mode -----------------------------------------------------
 $disp = Invoke-Build @{ RunMode = "DISPATCH" }
@@ -140,6 +150,38 @@ $dispLine = ($disp -split "`n" | Where-Object { $_ -match "\[DISPATCH\]" } | Sel
 Add-Result "Dispatch splits the run per shipment" `
     ($disp -match "12 shipment payload\(s\) prepared from 48 transaction\(s\)") `
     $(if ($dispLine) { $dispLine.Trim() } else { "no [DISPATCH] line in the run log" })
+
+# The Performer is its own entry point, as Orchestrator would start it. In DRYRUN it
+# consumes the payload file Dispatch just wrote instead of a live queue.
+$perf = & $Build -Entry "Workflows\Queue\Performer.xaml" -LogTail 80 6>&1 2>&1 | Out-String
+$perfLine = ($perf -split "`n" | Where-Object { $_ -match "\[PERFORM\] total=" } | Select-Object -Last 1)
+Add-Result "Performer reaches the batch verdict from the payloads" `
+    ($perf -match "consuming 12 payload" -and $perf -match [regex]::Escape("total=48 pass=40 warn=1 fail=7") `
+        -and $perf -match "\[VERIFY\] VALID") `
+    $(if ($perfLine) { ($perfLine -replace '^\s*\S+\s+\S+\s+', '').Trim() } else { "no [PERFORM] total line" })
+
+# --- 12. LOOKUP mapping mode -------------------------------------------------
+$look = Invoke-Build @{ MappingMode = "LOOKUP" }
+$mapLine = ($look -split "`n" | Where-Object { $_ -match "\[MAP\] \d+ rows joined" } | Select-Object -Last 1)
+Add-Result "LOOKUP: the transaction map decides, same verdict" `
+    ($look -match "mapping LOOKUP" -and $look -match [regex]::Escape($expected)) `
+    $(if ($mapLine) { ($mapLine -replace '^\s*\S+\s+\S+\s+', '').Trim() } else { "no [MAP] line" })
+
+# --- 13. Outward paths against local test doubles ----------------------------
+$integ = & (Join-Path $PSScriptRoot "integration_tests.ps1") 6>&1 2>&1 | Out-String
+$integLine = ($integ -split "`n" | Where-Object { $_ -match "integration checks passed" } | Select-Object -Last 1)
+Add-Result "API, SMTP, webhooks and WEB over HTTP" `
+    ($integ -match "(\d+)/\1 integration checks passed") $(if ($integLine) { $integLine.Trim() } else { "see output" })
+
+# --- 14. Reviewer dialog ------------------------------------------------------
+if ($SkipDialog) {
+    Add-Result "Reviewer dialog answered via UI Automation" $true "skipped (-SkipDialog)"
+} else {
+    $dlg = & (Join-Path $PSScriptRoot "dialog_test.ps1") 6>&1 2>&1 | Out-String
+    $dlgLine = ($dlg -split "`n" | Where-Object { $_ -match "dialog checks passed" } | Select-Object -Last 1)
+    Add-Result "Reviewer dialog answered via UI Automation" `
+        ($dlg -match "(\d+)/\1 dialog checks passed") $(if ($dlgLine) { $dlgLine.Trim() } else { "see output" })
+}
 
 # Leave the project back in its default state.
 Invoke-Build | Out-Null

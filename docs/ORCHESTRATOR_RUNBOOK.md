@@ -125,16 +125,16 @@ Before the first unattended run, set these in `Config.xlsx`:
 
 ## 4. Queue-based processing (high volume)
 
-> ### ⚠️ This section is untested
+> ### ⚠️ Three activities in this section are untested against a live queue
 >
-> `Dispatcher.xaml` and `Performer.xaml` compile and are structurally correct, and the
-> dispatcher's real logic — grouping, serialisation and payload construction — is fully
-> exercised by `RunMode = DISPATCH` with `QueueMode = DRYRUN` (verified: 48 transactions →
-> 12 payloads). But `Add Queue Item`, `Get Transaction Item` and `Set Transaction Status`
-> have **never been run against a live Orchestrator queue**, because that needs a tenant.
+> The whole dispatch → perform path runs with `QueueMode = DRYRUN`: `Main` with
+> `RunMode = DISPATCH` writes 12 shipment payloads, and `Performer.xaml`, started as its own
+> entry point, consumes them and reaches `total=48 pass=40 warn=1 fail=7 escalations=1` with
+> a `VALID` audit chain — the same as a batch run. `DRYRUN` and `ORCHESTRATOR` share every
+> step except the three that talk to Orchestrator: `Add Queue Item`, `Get Transaction Item`
+> and `Set Transaction Status`. Those have **never run against a live queue**.
 >
-> Budget time to debug this. Everything else in the project has been executed end to end;
-> this has not.
+> Budget a little time for them. Everything else has been executed end to end.
 
 ### 4.1 Why a shipment, not a transaction
 
@@ -160,9 +160,26 @@ no rule reaches across shipments, so nothing is lost by splitting there.
 | Process | Entry point | Config |
 |---|---|---|
 | `BLV Dispatcher` | `Main.xaml` | `RunMode = DISPATCH`, `QueueMode = ORCHESTRATOR` |
-| `BLV Performer` | `Workflows\Queue\Performer.xaml` | — |
+| `BLV Performer` | `Workflows\Queue\Performer.xaml` | `QueueMode = ORCHESTRATOR` |
 
-Set the Performer's entry point under **Process → Edit → Entry point**.
+`Performer.xaml` is registered as an entry point in `project.json`, so it appears in the
+**Entry point** drop-down when you create the process from the package. It takes no
+arguments: it reads `Config.xlsx` itself, exactly as `Main` does.
+
+Both processes must run in the folder that holds the queue. Queue activities resolve the
+queue in the folder of the job, so nothing in the project names a folder; if you run the
+Performer from Studio instead, the robot's default folder is used.
+
+To try the Performer locally without a tenant, dispatch in `DRYRUN` and run it as an entry
+point — it consumes the newest payload file instead of a queue:
+
+```bash
+powershell -File build.ps1 -Set @{RunMode='DISPATCH'}
+```
+
+```bash
+powershell -File build.ps1 -Entry "Workflows\Queue\Performer.xaml"
+```
 
 Each queue item carries:
 
@@ -184,9 +201,13 @@ Each queue item carries:
 | Min items | 1 |
 | Max pending jobs | 3 (raise to scale out) |
 
-The Performer as written processes **one item per job**. To drain the queue in a single job,
-wrap its body in a `Do While` that loops until `Get Transaction Item` returns `Nothing` — the
-"queue empty" branch already handles that case.
+Each Performer job **drains the queue**: it keeps taking items until `Get Transaction Item`
+returns nothing, or until it has processed `QueueMaxItemsPerJob` items (default 100; add the
+setting to the `Settings` sheet to change it), so a queue that keeps refilling cannot hold a
+robot forever. Each shipment is validated, escalated and appended to the audit chain, then
+marked Successful with its verdict and the chain head in the item's output. A shipment that
+throws is marked Failed with the exception message and the job moves on to the next one. At
+the end the job logs its totals and verifies the audit chain.
 
 ---
 

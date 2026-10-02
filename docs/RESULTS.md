@@ -67,7 +67,7 @@ legitimate one.
 
 ## 3. Acceptance suite
 
-`tools\run_all_checks.ps1` — **12/12 passing**.
+`tools\run_all_checks.ps1` — **16/16 passing**.
 
 | # | Check | Result |
 |---|---|---|
@@ -78,11 +78,15 @@ legitimate one.
 | 5 | Rule disabled in Excel is skipped (Novelty 1) | PASS |
 | 6 | HTML dashboard produced, self-contained | PASS |
 | 7 | CRITICAL anomaly escalated (Novelty 2) | PASS |
-| 8 | Identical result on a second chain (Novelty 3) | PASS |
+| 8 | Identical result on a second chain and a ledger export (Novelty 3) | PASS |
 | 9 | Audit tampering detected (Novelty 4) | PASS |
 | 10 | WEB mode reaches the same result as MOCK | PASS |
-| 11 | UiPath test cases (7 of them) | PASS |
+| 11 | UiPath test cases (10 of them) | PASS |
 | 12 | Dispatch splits per shipment | PASS |
+| 13 | Performer, from the dispatched payloads, reaches the batch verdict | PASS |
+| 14 | `MappingMode = LOOKUP` reaches the same verdict | PASS |
+| 15 | Outward paths against local test doubles (10 checks) | PASS |
+| 16 | Reviewer dialog answered through UI Automation (5 checks) | PASS |
 
 The dataset oracle (`tools\verify_seeded_data.py`) is a deliberately independent
 implementation — it re-derives the expected outcome for all 48 transactions from the raw
@@ -90,7 +94,7 @@ JSON and the ERP workbook. The bot and the oracle agree on every row.
 
 ### 3.1 UiPath test cases
 
-`tools\run_tests.ps1` — **7/7 passing**. Also runnable from Studio's Test Explorer.
+`tools\run_tests.ps1` — **10/10 passing**. Also runnable from Studio's Test Explorer.
 
 | Test | Covers | Edge cases beyond the sample data |
 |---|---|---|
@@ -101,6 +105,9 @@ JSON and the ERP workbook. The bot and the oracle agree on every row.
 | TC05 | R5 ordering | the flagged row is the out-of-order event, not the one that preceded it |
 | TC06 | R6 required event | the finding attaches to the shipment's latest event |
 | TC07 | audit chain | write → verify VALID → tamper → verify INVALID at the right line |
+| TC08 | field-mapping engine | two invented feeds (`export.items` nested, `rows` flat) whose field names appear nowhere in `Config.xlsx`; all ten transforms; an unmapped field stays null |
+| TC09 | normaliser hardening | a value transfer, an `approve()` call, truncated call data and a non-object are each set aside and counted; an unknown transform and a missing `TxHash` mapping are rejected by name |
+| TC10 | `LOOKUP` mapping | the map overrides the decoded payload; hash match is case-insensitive; an unmapped hash is `NOT_IN_TX_MAP`; `DECODE` on the same rows follows the payload instead |
 
 These are unit tests against hand-built fixtures, not a replay of the sample data. TC04
 caught a real defect while being written: R4 assumed a transaction hash was at least 12
@@ -112,9 +119,53 @@ The same 48 transactions reach the same verdict through every source:
 
 | Mode | Source | Result |
 |---|---|---|
-| `MOCK` | bundled Etherscan-shaped JSON | `total=48 pass=40 warn=1 fail=7` |
-| `WEB` | explorer page, HTML parsed | `total=48 pass=40 warn=1 fail=7` |
-| `API` | live Etherscan V2 | not executed — no API key configured |
+| `MOCK`, profile `ETHERSCAN` | bundled Etherscan-shaped JSON | `total=48 pass=40 warn=1 fail=7` |
+| `MOCK`, profile `LEDGER_EXPORT` | ledger export, different schema, 52 records | `total=48 pass=40 warn=1 fail=7` |
+| `WEB` | explorer page, HTML parsed, from disk | `total=48 pass=40 warn=1 fail=7` |
+| `WEB` | explorer page fetched over HTTP | `total=48 pass=40 warn=1 fail=7` |
+| `API` | Etherscan V2 protocol, local test double, chains 1 and 137 | `total=48 pass=40 warn=1 fail=7` |
+| `API` | the real Etherscan | not executed — no API key configured |
+
+The ledger export carries four records the bot must not count: two plain value transfers, one
+call to another function, and one with truncated call data. The run says so:
+
+```
+[NORMALISE] 52 record(s) via profile LEDGER_EXPORT: 48 decoded, 2 value transfer(s) ignored,
+            1 call(s) to other functions ignored, 1 malformed and skipped
+```
+
+### 3.3 Mapping modes agree
+
+| `MappingMode` | Shipment and milestone come from | Result |
+|---|---|---|
+| `DECODE` | the transaction's ABI call data | `total=48 pass=40 warn=1 fail=7` |
+| `LOOKUP` | `TxShipmentMap.xlsx` (47 mappings) | `total=48 pass=40 warn=1 fail=7` |
+
+### 3.4 Batch and queue agree
+
+`RunMode = DISPATCH` splits the run into 12 shipment payloads. `Performer.xaml`, started as
+its own entry point the way an Orchestrator queue trigger would start it, consumes them in
+`DRYRUN` and reaches `total=48 pass=40 warn=1 fail=7 escalations=1` with a `VALID` audit chain —
+the same as one batch run.
+
+### 3.5 Outward paths
+
+`tools\integration_tests.ps1` runs the bot against local test doubles
+(`tools\mock_services.py`: an Etherscan V2 endpoint, an explorer page, webhook receivers and a
+capturing SMTP server) and inspects what actually arrived — **10/10 passing**:
+
+| Check | What is asserted |
+|---|---|
+| API, chain 1 | a well-formed V2 request (chainid, module, action, key) |
+| API verdict | same verdict as the bundled feed |
+| API key | sent to the API, but redacted in the logged URL |
+| SMTP | the alert reaches the mail server, naming `SHP-1007` |
+| Teams webhook | a valid Adaptive Card with a fact set |
+| Slack webhook | a valid Block Kit payload with a header block |
+| Bad API key | the run stops with Etherscan's own `Invalid API Key` message (`status=0`) |
+| API, chain 137 | the `chainid` parameter follows `Config.xlsx` |
+| Empty contract | an empty run (`total=0`) with a valid audit chain, not an error |
+| WEB over HTTP | the explorer page is fetched over the network, same verdict |
 
 That equality is the real evidence for the "blockchain agnostic" claim: the validation
 engine cannot tell which reader produced its DataTable.
@@ -144,8 +195,15 @@ Failures 7 → 5, R4 absent from the summary. No workflow file was opened or rep
 The decision is written into the results table *before* the audit log is generated, so the
 reviewer's judgement is hashed into the chain alongside the machine's verdict.
 
-Verified in `SIMULATE` and `AUTO_LOG`. **`PROMPT` has not been executed** — the dialog blocks
-on a desktop and cannot be driven headlessly.
+Verified in all three modes. `PROMPT` is tested by `tools\dialog_test.ps1`, which starts a
+run, finds the reviewer dialog through Windows UI Automation, reads it, picks *REJECTED* in the
+drop-down and presses Ok — exactly what a person would do — then checks (5/5):
+
+1. the dialog appears for the CRITICAL anomaly and names it (`SHP-1007`, `Delivered`, the wallet)
+2. the run finishes after the answer
+3. the decision is logged against the real Windows user
+4. the decision and the reviewer are hashed into the audit chain
+5. the chain still verifies with the human decision in it
 
 ### Novelty 3 — blockchain agnosticism
 
@@ -153,8 +211,12 @@ on a desktop and cannot be driven headlessly.
 |---|---|---|---|
 | 1 | Ethereum (chainid 1) | `etherscan_txlist_response.json` | `total=48 pass=40 warn=1 fail=7` |
 | 2 | Polygon (chainid 137) | `etherscan_txlist_polygon.json` | `total=48 pass=40 warn=1 fail=7` |
+| 3 | Ledger export | `ledger_export.json`, profile `LEDGER_EXPORT` | `total=48 pass=40 warn=1 fail=7` |
 
-Identical, with only configuration changed between runs.
+Identical, with only configuration changed between runs. Run 3 is the stronger evidence: the
+feed has different field names (`txId`, `submitter`, `confirmedAt`, `payload`), different
+nesting (`block.number`), hex block numbers, ISO timestamps and no selector field, and was onboarded by adding rows to the `ChainProfiles` and
+`FieldMapping` sheets.
 
 ### Novelty 4 — tamper-evident audit trail
 
@@ -186,6 +248,7 @@ Restored from backup, verification returns to VALID.
 | `ValidationAuditLog.csv` | ~20 KB / run | 48 hash-chained entries, append-only |
 | `dashboard.html` | ~9 KB | Self-contained visual dashboard: KPIs, rules, findings, run history |
 | `dashboard_summary.json` | ~3 KB | KPIs and findings for Power BI / Google Sheets |
+| `AuditReport_<runid>.pdf` | ~210 KB | Formal audit report for submission, printed in ~1.5 s by headless Edge |
 | `Alert_<runid>.eml` | ~5 KB | HTML alert with the failure summary table |
 | `QueueDryRun/queue_payloads_<runid>.json` | ~40 KB | 12 per-shipment queue payloads (dispatch mode) |
 
@@ -195,10 +258,10 @@ Restored from backup, verification returns to VALID.
 
 Stated plainly so the limits are not overclaimed:
 
-- **Live blockchain data.** All figures are from `MOCK` and `WEB`, both of which read bundled
-  data. `API` mode is implemented and shares the same parser, but has not been run against
-  Etherscan (no API key configured).
-- **Orchestrator queues.** `Dispatcher` is verified in `DRYRUN` (48 → 12 payloads).
+- **Live blockchain data.** `API` mode is exercised over HTTP against a local Etherscan V2
+  test double, including its error responses, but has not been run against the real Etherscan
+  (no API key configured).
+- **Orchestrator queues.** Dispatch → Perform is verified end to end in `DRYRUN`.
   `Add Queue Item`, `Get Transaction Item` and `Set Transaction Status` have never executed
   against a live tenant. The package itself *is* published to Orchestrator.
 - **Web extraction is HTML parsing, not browser automation.** `WEB` mode fetches the
@@ -206,8 +269,8 @@ Stated plainly so the limits are not overclaimed:
   Data Scraping: UIAutomation 25.10 removed the classic `ExtractStructuredData`, its
   replacement needs recorder-generated descriptors, and the UiPath browser extension is not
   installed on this machine.
-- **`EscalationMode = PROMPT`.** Verified only in `SIMULATE` and `AUTO_LOG`; the reviewer
-  dialog blocks on a desktop and cannot be driven headlessly.
+- **Real mail and chat servers.** SMTP and webhooks are verified against local receivers
+  that capture what arrives, not against a real mail server, Teams or Slack.
 - **Scale.** The largest run tested is 48 transactions. Nothing in the design is quadratic —
   the rules use dictionary lookups and one sort per shipment — but thousands of transactions
   per run has not been measured.

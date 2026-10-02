@@ -17,7 +17,7 @@
   "entitiesStores": [],
   "schemaVersion": "4.0",
   "studioVersion": "25.10.15.0",
-  "projectVersion": "1.0.111",
+  "projectVersion": "1.0.135",
   "runtimeOptions": {
     "autoDispose": false,
     "netFrameworkLazyLoading": false,
@@ -87,6 +87,24 @@
         "testCaseId": "77b338d6-e9a7-457c-9529-d047f09bd296",
         "testCaseType": "TestCase",
         "fileName": "Tests\\TC07_AuditChain_TamperEvident.xaml"
+      },
+      {
+        "editingStatus": "InProgress",
+        "testCaseId": "27779df2-d08c-4741-a7ea-13b9f0cd69f7",
+        "testCaseType": "TestCase",
+        "fileName": "Tests\\TC08_FieldMapping_Engine.xaml"
+      },
+      {
+        "editingStatus": "InProgress",
+        "testCaseId": "bc6c9474-6d78-4060-9611-4ae1c72bf31b",
+        "testCaseType": "TestCase",
+        "fileName": "Tests\\TC09_Normaliser_Hardening.xaml"
+      },
+      {
+        "editingStatus": "InProgress",
+        "testCaseId": "73692e13-c431-416e-adfb-2fa72ee3d226",
+        "testCaseType": "TestCase",
+        "fileName": "Tests\\TC10_LookupMapping.xaml"
       }
     ],
     "saveToCloud": false
@@ -144,6 +162,24 @@
     {
       "filePath": "Workflows\\Queue\\Performer.xaml",
       "uniqueId": "0de5e712-01cf-570e-9c0e-7133a9156de5",
+      "input": [],
+      "output": []
+    },
+    {
+      "filePath": "Tests\\TC08_FieldMapping_Engine.xaml",
+      "uniqueId": "8aa18233-0583-56ac-97e2-f49af8a7ea19",
+      "input": [],
+      "output": []
+    },
+    {
+      "filePath": "Tests\\TC09_Normaliser_Hardening.xaml",
+      "uniqueId": "f3de0091-35a6-5c34-9df8-2a5ae6a9f3db",
+      "input": [],
+      "output": []
+    },
+    {
+      "filePath": "Tests\\TC10_LookupMapping.xaml",
+      "uniqueId": "c0c1d11d-d0b4-5df6-8406-7e0578cc519d",
       "input": [],
       "output": []
     }

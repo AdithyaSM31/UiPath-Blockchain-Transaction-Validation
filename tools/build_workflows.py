@@ -514,14 +514,14 @@ def normalise_chain_records() -> str:
             ("Out", "out_dtChain", "sd:DataTable", "out_dtChain"),
             ("Out", "out_Malformed", "x:Int32", "malformed"),
             ("Out", "out_Warnings", "x:String", "warnings"),
-            ("Out", "out_Summary", "x:String", "summary"),
+            ("Out", "out_Summary", "x:String", "out_Summary"),
         ], name="Invoke Code - apply profile and field mappings")
-        + log('"[NORMALISE] " & summary')
+        + log('"[NORMALISE] " & out_Summary')
         + if_("malformed > 0",
               log('"[NORMALISE] Malformed records skipped - " & warnings', level="Warn"),
               name="If - malformed records"),
         variables(("njl:JObject", "jsonObj"), ("x:Int32", "malformed"),
-                  ("x:String", "warnings"), ("x:String", "summary")))
+                  ("x:String", "warnings")))
 
     return workflow("01m_Normalise_ChainRecords", body, members=[
         ("in_JsonText", "InArgument(x:String)"),
@@ -532,6 +532,7 @@ def normalise_chain_records() -> str:
         ("in_dtSignatures", "InArgument(sd:DataTable)"),
         ("in_dtProfiles", "InArgument(sd:DataTable)"),
         ("out_dtChain", "OutArgument(sd:DataTable)"),
+        ("out_Summary", "OutArgument(x:String)"),
     ])
 
 
