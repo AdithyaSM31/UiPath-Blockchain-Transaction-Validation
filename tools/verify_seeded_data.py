@@ -219,6 +219,48 @@ def main() -> int:
     check("so a raw string compare would fail without normalisation",
           not set(mixed_case) & set(erp_lower))
 
+    # ----------------------------------------------------------------------
+    print("\n--- Ledger-export feed (different schema, same transactions) ---")
+    with open(os.path.join(INPUT, "MockChain", "ledger_export.json"), encoding="utf-8") as f:
+        ledger = json.load(f)["data"]["transactions"]
+
+    known_selectors = set(selector_to_event)
+    decoded_ledger, plain, foreign, malformed = [], 0, 0, 0
+    for rec in ledger:
+        payload = rec.get("payload") or ""
+        if len(payload) < 10:
+            plain += 1
+            continue
+        if payload[:10].lower() not in known_selectors:
+            foreign += 1
+            continue
+        try:
+            d = decode_input(payload)
+        except Exception:                               # noqa: BLE001
+            malformed += 1
+            continue
+        d.update(hash=rec["txId"].lower(),
+                 sender=rec["submitter"].lower(),
+                 ts=datetime.strptime(rec["confirmedAt"], "%Y-%m-%dT%H:%M:%SZ"),
+                 block=int(rec["block"]["number"], 16))
+        decoded_ledger.append(d)
+
+    check("52 records in the ledger export", len(ledger) == 52, f"got {len(ledger)}")
+    check("2 plain value transfers to ignore", plain == 2, f"got {plain}")
+    check("1 call to an unrelated function to ignore", foreign == 1, f"got {foreign}")
+    check("1 truncated logistics call that cannot be decoded", malformed == 1, f"got {malformed}")
+    check("48 logistics transactions decode", len(decoded_ledger) == 48, f"got {len(decoded_ledger)}")
+
+    def fingerprint(rows):
+        return sorted((r["hash"], r["shipmentId"], r["quantity"], r["poNumber"], r["sender"],
+                       r["ts"].strftime("%Y-%m-%d %H:%M:%S")) for r in rows)
+    check("they are exactly the Etherscan feed's transactions, field for field",
+          fingerprint(decoded_ledger) == fingerprint(decoded))
+
+    eth_blocks = {t["hash"].lower(): int(t["blockNumber"]) for t in txs}
+    check("hex block numbers agree with the decimal ones",
+          all(eth_blocks[r["hash"]] == r["block"] for r in decoded_ledger))
+
     print()
     if failures:
         print(f"{len(failures)} CHECK(S) FAILED")

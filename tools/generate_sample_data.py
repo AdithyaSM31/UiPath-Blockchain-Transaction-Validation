@@ -301,6 +301,64 @@ def to_etherscan_json(txs, chain_label="ethereum"):
     return {"status": "1", "message": "OK", "result": result}
 
 
+def to_ledger_export(txs):
+    """
+    The same 48 logistics transactions as the Etherscan feed, in a permissioned-ledger
+    export format: nested objects, hex block numbers, ISO-8601 times, a boolean
+    revert flag, different field names, and no methodId - the selector has to be
+    derived from the call data.
+
+    Four extra records are mixed in that the bot must refuse rather than validate or
+    crash on: two plain value transfers, a call to an unrelated function, and a
+    logistics call whose call data is truncated. A real ledger carries all of these.
+    """
+    base_epoch = int(BASE_TIME.timestamp())
+    records = []
+    for t in txs:
+        block = GENESIS_BLOCK + (t["epoch"] - base_epoch) // 12
+        records.append({
+            "txId": t["hash"],
+            "block": {"number": hex(block), "hash": "0x" + keccak256(f"lblock{block}".encode()).hex()},
+            "confirmedAt": datetime.fromtimestamp(t["epoch"], tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "submitter": t["from"],
+            "target": CONTRACT,
+            "payload": t["input"],
+            "reverted": False,
+            "channel": "pharma-logistics",
+            "endorsements": 3,
+        })
+
+    def noise(tag, at_hours, payload, submitter):
+        epoch = base_epoch + at_hours * 3600
+        block = GENESIS_BLOCK + (epoch - base_epoch) // 12
+        return {
+            "txId": "0x" + keccak256(f"noise-{tag}".encode()).hex(),
+            "block": {"number": hex(block), "hash": "0x" + keccak256(f"nblock{tag}".encode()).hex()},
+            "confirmedAt": datetime.fromtimestamp(epoch, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "submitter": submitter,
+            "target": CONTRACT,
+            "payload": payload,
+            "reverted": False,
+            "channel": "pharma-logistics",
+            "endorsements": 3,
+        }
+
+    approve_sel = selector("approve(address,uint256)")
+    unrelated = approve_sel + "00" * 12 + ROGUE_ADDR[2:].lower() + format(1000, "064x")
+    truncated = EVENT_META["Delivered"]["methodId"] + format(0x60, "064x")   # one word, then nothing
+    extras = [
+        (3,  noise("transfer-a", 7,  "0x", PARTNER_ADDR["Maersk Freight Forwarding"])),
+        (17, noise("transfer-b", 31, "",   PARTNER_ADDR["LastMile Logistics India"])),
+        (29, noise("unrelated",  52, unrelated, PARTNER_ADDR["ColdChain Warehousing Ltd"])),
+        (41, noise("truncated",  80, truncated, PARTNER_ADDR["LastMile Logistics India"])),
+    ]
+    for pos, rec in sorted(extras, key=lambda e: e[0], reverse=True):
+        records.insert(pos, rec)
+
+    return {"data": {"ledger": "pharma-logistics", "exportedAt": "2026-09-07T00:00:00Z",
+                     "transactions": records}}
+
+
 # --------------------------------------------------------------------------
 # Excel helpers
 # --------------------------------------------------------------------------
@@ -357,7 +415,11 @@ def write_config(path):
         ("ShipmentsSheet",              "Shipments",                    "Shipment master sheet name."),
         ("ShipmentEventsSheet",         "ShipmentEvents",               "Expected milestone lines."),
         ("TxShipmentMapFile",           r"Data\Input\TxShipmentMap.xlsx", "Used when MappingMode = LOOKUP."),
-        ("MappingMode",                 "DECODE",                       "DECODE reads the ABI input data; LOOKUP uses the mapping file."),
+        ("MappingMode",                 "DECODE",
+         "DECODE takes shipment and milestone from the ABI call data; LOOKUP takes them from TxShipmentMap.xlsx."),
+        ("ChainProfile",                "ETHERSCAN",
+         "Profile on the ChainProfiles sheet used for MOCK and API data. Onboarding a new chain = a new profile."),
+        ("WebPageProfile",              "EXPLORER_PAGE",                "Profile used when DataSourceMode = WEB."),
         ("TimestampToleranceHours",     2,                              "R1: drift up to this is a PASS."),
         ("TimestampWarnToleranceHours", 4,                              "R1: drift past this is a FAIL; between the two is a WARNING."),
         ("QuantityTolerance",           0,                              "R2: permitted absolute difference in units."),
@@ -412,22 +474,60 @@ def write_config(path):
     write_sheet(ws, ["Address", "PartnerName", "Role", "Active"],
                 wallets, widths=[46, 34, 20, 10])
 
+    # ---- ChainProfiles ---------------------------------------------------
+    # Where the records live in each source's JSON and how it signals success.
+    # One row per source format; the field-level detail is on FieldMapping.
+    ws = wb.create_sheet("ChainProfiles")
+    profiles = [
+        ["ETHERSCAN", "result", "status", "1",
+         "Etherscan V2 account/txlist (also PolygonScan, BscScan). Flat records, epoch seconds."],
+        ["LEDGER_EXPORT", "data.transactions", "", "",
+         "Permissioned-ledger export. Nested JSON, ISO-8601 times, hex block numbers, no methodId field."],
+        ["EXPLORER_PAGE", "records", "", "",
+         "Rows scraped from an explorer's transaction table (01c wraps them as {records: [...]})."],
+    ]
+    write_sheet(ws, ["Profile", "RecordsPath", "StatusField", "StatusOkValue", "Description"],
+                profiles, widths=[18, 22, 14, 15, 92])
+
     # ---- FieldMapping ----------------------------------------------------
+    # Source field -> canonical field, with the conversion to apply. A source of
+    # the form "payload:argN" is the Nth ABI argument decoded from that field.
     ws = wb.create_sheet("FieldMapping")
     mapping = [
-        ["hash",              "TxHash",            "LOWERCASE",         "Transaction identity."],
-        ["blockNumber",       "BlockNumber",       "INTEGER",           ""],
-        ["timeStamp",         "EventTimestampUtc", "EPOCH_TO_DATETIME", "Unix seconds to DateTime."],
-        ["from",              "SenderAddress",     "LOWERCASE",         "Reconciles checksummed and non-checksummed forms."],
-        ["to",                "ContractAddress",   "LOWERCASE",         ""],
-        ["methodId",          "EventSelector",     "LOWERCASE",         "Real keccak-256 function selector."],
-        ["input:arg0",        "ShipmentID",        "ABI_STRING",        "First ABI argument."],
-        ["input:arg1",        "OnChainQty",        "ABI_UINT256",       "Second ABI argument."],
-        ["input:arg2",        "PONumber",          "ABI_STRING",        "Third ABI argument."],
-        ["isError",           "TxFailed",          "BOOLEAN_INVERT",    "Etherscan reports 0 for success."],
+        ["ETHERSCAN", "hash",         "TxHash",            "LOWERCASE",         "Transaction identity."],
+        ["ETHERSCAN", "blockNumber",  "BlockNumber",       "INTEGER",           ""],
+        ["ETHERSCAN", "timeStamp",    "EventTimestampUtc", "EPOCH_TO_DATETIME", "Unix seconds to DateTime."],
+        ["ETHERSCAN", "from",         "SenderAddress",     "LOWERCASE",         "Reconciles checksummed and non-checksummed forms."],
+        ["ETHERSCAN", "to",           "ContractAddress",   "LOWERCASE",         ""],
+        ["ETHERSCAN", "methodId",     "EventSelector",     "LOWERCASE",         "Real keccak-256 function selector."],
+        ["ETHERSCAN", "input:arg0",   "ShipmentID",        "ABI_STRING",        "First ABI argument."],
+        ["ETHERSCAN", "input:arg1",   "OnChainQty",        "ABI_UINT256",       "Second ABI argument."],
+        ["ETHERSCAN", "input:arg2",   "PONumber",          "ABI_STRING",        "Third ABI argument."],
+        ["ETHERSCAN", "isError",      "TxFailed",          "BOOLEAN",           "Etherscan reports 1 for a reverted transaction."],
+
+        ["LEDGER_EXPORT", "txId",         "TxHash",            "LOWERCASE",       "Different field name for the same identity."],
+        ["LEDGER_EXPORT", "block.number", "BlockNumber",       "HEX_TO_INTEGER",  "Nested, and hex-encoded."],
+        ["LEDGER_EXPORT", "confirmedAt",  "EventTimestampUtc", "ISO_TO_DATETIME", "ISO-8601 rather than epoch seconds."],
+        ["LEDGER_EXPORT", "submitter",    "SenderAddress",     "LOWERCASE",       ""],
+        ["LEDGER_EXPORT", "target",       "ContractAddress",   "LOWERCASE",       ""],
+        ["LEDGER_EXPORT", "payload",      "EventSelector",     "SELECTOR",        "No methodId field: derived from the first 4 bytes of the call data."],
+        ["LEDGER_EXPORT", "payload:arg0", "ShipmentID",        "ABI_STRING",      ""],
+        ["LEDGER_EXPORT", "payload:arg1", "OnChainQty",        "ABI_UINT256",     ""],
+        ["LEDGER_EXPORT", "payload:arg2", "PONumber",          "ABI_STRING",      ""],
+        ["LEDGER_EXPORT", "reverted",     "TxFailed",          "BOOLEAN",         "A JSON boolean rather than a 0/1 string."],
+
+        ["EXPLORER_PAGE", "TxHash",      "TxHash",            "LOWERCASE",       "Column headers of the scraped table."],
+        ["EXPLORER_PAGE", "Block",       "BlockNumber",       "INTEGER",         ""],
+        ["EXPLORER_PAGE", "DateTimeUtc", "EventTimestampUtc", "ISO_TO_DATETIME", "Accepts 'yyyy-MM-dd HH:mm:ss' as well as ISO-8601."],
+        ["EXPLORER_PAGE", "From",        "SenderAddress",     "LOWERCASE",       ""],
+        ["EXPLORER_PAGE", "To",          "ContractAddress",   "LOWERCASE",       ""],
+        ["EXPLORER_PAGE", "Input",       "EventSelector",     "SELECTOR",        ""],
+        ["EXPLORER_PAGE", "Input:arg0",  "ShipmentID",        "ABI_STRING",      ""],
+        ["EXPLORER_PAGE", "Input:arg1",  "OnChainQty",        "ABI_UINT256",     ""],
+        ["EXPLORER_PAGE", "Input:arg2",  "PONumber",          "ABI_STRING",      ""],
     ]
-    write_sheet(ws, ["BlockchainField", "LogisticsField", "TransformType", "Notes"],
-                mapping, widths=[22, 22, 22, 62])
+    write_sheet(ws, ["Profile", "BlockchainField", "LogisticsField", "TransformType", "Notes"],
+                mapping, widths=[18, 18, 20, 20, 64])
 
     # ---- EventSequence ---------------------------------------------------
     ws = wb.create_sheet("EventSequence")
@@ -463,6 +563,12 @@ def main():
     poly = os.path.join(MOCK, "etherscan_txlist_polygon.json")
     with open(poly, "w", encoding="utf-8") as f:
         json.dump(to_etherscan_json(txs, "polygon"), f, indent=2)
+
+    # A third feed in a deliberately different SHAPE, so agnosticism is proven at the
+    # schema level and not only by switching a chain id.
+    ledger = os.path.join(MOCK, "ledger_export.json")
+    with open(ledger, "w", encoding="utf-8") as f:
+        json.dump(to_ledger_export(txs), f, indent=2)
 
     # ---- LogisticsRecords.xlsx ------------------------------------------
     wb = Workbook()
@@ -582,7 +688,7 @@ def main():
     print(f"shipments              : {len(SHIPMENTS)}")
     print(f"contract               : {CONTRACT}")
     print(f"rogue wallet (R3)      : {ROGUE_ADDR}")
-    for p in (eth, poly, logistics, txmap, config, anomaly_doc):
+    for p in (eth, poly, ledger, logistics, txmap, config, anomaly_doc):
         print("wrote:", os.path.relpath(p, ROOT))
 
 

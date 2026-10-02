@@ -159,6 +159,24 @@ If Not File.Exists(Convert.ToString(d("LogisticsFile"))) Then
     Throw New IO.FileNotFoundException("Logistics workbook not found: " & Convert.ToString(d("LogisticsFile")))
 End If
 
+' ---- Chain profile and mapping mode ---------------------------------------
+Dim mapMode As String = If(d.ContainsKey("MappingMode"), Convert.ToString(d("MappingMode")).Trim().ToUpperInvariant(), "")
+If mapMode = "" Then mapMode = "DECODE"
+If mapMode <> "DECODE" AndAlso mapMode <> "LOOKUP" Then
+    Throw New InvalidOperationException("MappingMode must be DECODE or LOOKUP. Found: " & mapMode)
+End If
+d("MappingMode") = mapMode
+If mapMode = "LOOKUP" AndAlso Not File.Exists(Convert.ToString(d("TxShipmentMapFile"))) Then
+    Throw New IO.FileNotFoundException("MappingMode is LOOKUP but the transaction map is missing: " & Convert.ToString(d("TxShipmentMapFile")))
+End If
+Dim chainProf As String = If(d.ContainsKey("ChainProfile"), Convert.ToString(d("ChainProfile")).Trim().ToUpperInvariant(), "")
+If chainProf = "" Then chainProf = "ETHERSCAN"
+Dim webProf As String = If(d.ContainsKey("WebPageProfile"), Convert.ToString(d("WebPageProfile")).Trim().ToUpperInvariant(), "")
+If webProf = "" Then webProf = "EXPLORER_PAGE"
+d("ChainProfile") = chainProf
+d("WebPageProfile") = webProf
+d("EffectiveChainProfile") = If(mode = "WEB", webProf, chainProf)
+
 ' ---- Stamp this run -----------------------------------------------------
 d("RunId") = DateTime.UtcNow.ToString("yyyyMMdd'T'HHmmss'Z'") & "-" & Convert.ToString(d("BotIdentity"))
 d("RunStartedUtc") = DateTime.UtcNow
@@ -167,8 +185,9 @@ d("WindowsUser") = Environment.UserName
 d("ProjectRoot") = in_ProjectRoot
 
 out_Config = d
-out_Summary = String.Format("mode={0} rules={1} wallets={2} milestones={3} runId={4}", _
-    mode, in_dtRules.Rows.Count, in_dtWallets.Rows.Count, in_dtSequence.Rows.Count, d("RunId"))
+out_Summary = String.Format("mode={0} profile={5} mapping={6} rules={1} wallets={2} milestones={3} runId={4}", _
+    mode, in_dtRules.Rows.Count, in_dtWallets.Rows.Count, in_dtSequence.Rows.Count, d("RunId"), _
+    d("EffectiveChainProfile"), mapMode)
 '''.strip()
 
     excel_body = sequence("Read configuration sheets",
@@ -177,7 +196,8 @@ out_Summary = String.Format("mode={0} rules={1} wallets={2} milestones={3} runId
         + excel_read("ApprovedWallets", "out_dtWallets")
         + excel_read("FieldMapping", "out_dtMapping")
         + excel_read("EventSequence", "out_dtSequence")
-        + excel_read("EventSignatures", "out_dtSignatures"))
+        + excel_read("EventSignatures", "out_dtSignatures")
+        + excel_read("ChainProfiles", "out_dtProfiles"))
 
     body = sequence(
         "00 - Initialise and read configuration",
@@ -204,21 +224,198 @@ out_Summary = String.Format("mode={0} rules={1} wallets={2} milestones={3} runId
         ("out_dtMapping", "OutArgument(sd:DataTable)"),
         ("out_dtSequence", "OutArgument(sd:DataTable)"),
         ("out_dtSignatures", "OutArgument(sd:DataTable)"),
+        ("out_dtProfiles", "OutArgument(sd:DataTable)"),
     ])
 
 
 # ==========================================================================
-# 01a_Extract_FromMockJson
+# 01m_Normalise_ChainRecords  -  the one place source formats are understood
 # ==========================================================================
-# The ABI decode lives here and is reused verbatim by the API reader, because both
-# receive an identical Etherscan envelope. That shared shape is what makes the bot
-# blockchain-agnostic rather than merely configurable.
-ABI_DECODE_CODE = r'''
-' Flatten an Etherscan `txlist` result array into the canonical chain DataTable.
-' Every extraction mode (MOCK, API, WEB) produces exactly this schema, so nothing
-' downstream needs to know where the data came from.
-Dim arr As JArray = CType(in_Json("result"), JArray)
+# MOCK, API and WEB each only fetch JSON; this workflow turns it into the canonical
+# chain table, driven entirely by the ChainProfiles and FieldMapping sheets. That is
+# what makes the bot blockchain-agnostic at the schema level: a feed with different
+# field names, nesting, number encodings and time formats is onboarded in Excel.
+NORMALISE_CODE = r'''
+' Every source - an Etherscan response, a ledger export, rows scraped off an explorer
+' page - arrives here as JSON. The ChainProfiles sheet says where the records are and
+' how the source reports success; FieldMapping says how each canonical field is
+' derived. Nothing below names a source field, so onboarding a new chain or a new
+' export format is a spreadsheet change, not a workflow change.
+Dim profile As String = in_Profile.Trim().ToUpperInvariant()
 
+' ---- Profile ---------------------------------------------------------------------
+Dim prof As DataRow = Nothing
+For Each r As DataRow In in_dtProfiles.Rows
+    If Convert.ToString(r("Profile")).Trim().ToUpperInvariant() = profile Then prof = r
+Next
+If prof Is Nothing Then
+    Throw New InvalidOperationException("Chain profile '" & profile & "' is not defined on the ChainProfiles sheet of Config.xlsx.")
+End If
+Dim recordsPath As String = Convert.ToString(prof("RecordsPath")).Trim()
+Dim statusField As String = Convert.ToString(prof("StatusField")).Trim()
+Dim statusOk As String = Convert.ToString(prof("StatusOkValue")).Trim()
+
+' ---- Field mappings for this profile, validated up front --------------------------
+' A bad row is a configuration mistake. Reporting it once, by name, beats letting it
+' surface as every single record failing to decode.
+Dim canonical As New HashSet(Of String)(New String() {"TxHash", "BlockNumber", "EventTimestampUtc", _
+    "SenderAddress", "ContractAddress", "EventSelector", "ShipmentID", "OnChainQty", "PONumber", "TxFailed"}, _
+    StringComparer.OrdinalIgnoreCase)
+Dim transforms As New HashSet(Of String)(New String() {"TEXT", "LOWERCASE", "INTEGER", "HEX_TO_INTEGER", _
+    "EPOCH_TO_DATETIME", "ISO_TO_DATETIME", "BOOLEAN", "SELECTOR", "ABI_STRING", "ABI_UINT256"})
+
+Dim maps As New List(Of String())
+Dim mapped As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
+For Each r As DataRow In in_dtMapping.Rows
+    If Convert.ToString(r("Profile")).Trim().ToUpperInvariant() <> profile Then Continue For
+    Dim src As String = Convert.ToString(r("BlockchainField")).Trim()
+    Dim dst As String = Convert.ToString(r("LogisticsField")).Trim()
+    Dim kind As String = Convert.ToString(r("TransformType")).Trim().ToUpperInvariant()
+    If Not canonical.Contains(dst) Then
+        Throw New InvalidOperationException("FieldMapping (" & profile & "): '" & dst & "' is not a canonical field.")
+    End If
+    If Not transforms.Contains(kind) Then
+        Throw New InvalidOperationException("FieldMapping (" & profile & "): unknown TransformType '" & kind & "' on " & src & ".")
+    End If
+    If (kind = "ABI_STRING" OrElse kind = "ABI_UINT256") <> src.Contains(":arg") Then
+        Throw New InvalidOperationException("FieldMapping (" & profile & "): " & src & " - ABI transforms need a source of the form field:argN, and only they may use one.")
+    End If
+    maps.Add(New String() {src, dst, kind})
+    mapped.Add(dst)
+Next
+
+Dim required As New List(Of String) From {"TxHash", "EventTimestampUtc", "SenderAddress"}
+If Not in_LookupMode Then required.AddRange(New String() {"EventSelector", "ShipmentID"})
+Dim missing As New List(Of String)
+For Each f As String In required
+    If Not mapped.Contains(f) Then missing.Add(f)
+Next
+If missing.Count > 0 Then
+    Throw New InvalidOperationException("FieldMapping for profile " & profile & " has no row for: " & _
+        String.Join(", ", missing) & ". Add them to the FieldMapping sheet of Config.xlsx.")
+End If
+
+' Which source field carries the call data, and the declared type of each ABI argument.
+Dim callField As String = ""
+Dim argTypes As New Dictionary(Of Integer, String)
+Dim idField As String = ""
+For Each m As String() In maps
+    If m(0).Contains(":arg") Then
+        Dim parts() As String = m(0).Split(":"c)
+        callField = parts(0)
+        argTypes(Convert.ToInt32(parts(1).Substring(3))) = m(2)
+    ElseIf m(2) = "SELECTOR" Then
+        callField = m(0)
+    End If
+    If m(1).Equals("TxHash", StringComparison.OrdinalIgnoreCase) Then idField = m(0)
+Next
+
+' ---- The contract's own functions ---------------------------------------------------
+' A real ledger carries plenty this bot does not own: value transfers, approvals,
+' calls to other contracts. Those are out of scope, not anomalies, so they are
+' counted and set aside before anything tries to decode them.
+Dim known As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
+For Each r As DataRow In in_dtSignatures.Rows
+    Dim sel As String = Convert.ToString(r("MethodId")).Trim()
+    If sel <> "" Then known.Add(sel)
+Next
+
+' ---- Locate the records ------------------------------------------------------------
+Dim recs As JArray = Nothing
+If recordsPath = "" Then
+    Throw New InvalidOperationException("Profile " & profile & " has no RecordsPath on the ChainProfiles sheet.")
+End If
+recs = TryCast(in_Json.SelectToken(recordsPath), JArray)
+If statusField <> "" Then
+    Dim st As String = Convert.ToString(in_Json.SelectToken(statusField))
+    If st <> statusOk Then
+        ' Etherscan reports "no transactions" as status 0 with an empty array. That is
+        ' an empty result, not a failure; anything else is.
+        If recs Is Nothing OrElse recs.Count > 0 Then
+            Throw New InvalidOperationException(String.Format( _
+                "Source reported {0}={1} (expected {2}): {3} {4}. A rate limit or an invalid API key is the usual cause.", _
+                statusField, st, statusOk, Convert.ToString(in_Json.SelectToken("message")), _
+                Convert.ToString(in_Json.SelectToken("result"))))
+        End If
+    End If
+End If
+If recs Is Nothing Then
+    Throw New InvalidOperationException("Profile " & profile & " expects a record array at '" & recordsPath & "', but the source has none there.")
+End If
+
+' ---- Conversions -------------------------------------------------------------------
+Dim epoch As New DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+Dim xform As Func(Of String, String, Object) = Function(kind As String, v As String) As Object
+    Dim t As String = v.Trim()
+    Select Case kind
+        Case "LOWERCASE"
+            Return t.ToLowerInvariant()
+        Case "INTEGER"
+            Return Long.Parse(t, CultureInfo.InvariantCulture)
+        Case "HEX_TO_INTEGER"
+            If t.StartsWith("0x", StringComparison.OrdinalIgnoreCase) Then Return Convert.ToInt64(t.Substring(2), 16)
+            Return Long.Parse(t, CultureInfo.InvariantCulture)
+        Case "EPOCH_TO_DATETIME"
+            Return epoch.AddSeconds(Double.Parse(t, CultureInfo.InvariantCulture))
+        Case "ISO_TO_DATETIME"
+            Return DateTime.Parse(t, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal Or DateTimeStyles.AssumeUniversal)
+        Case "BOOLEAN"
+            Dim b As String = t.ToLowerInvariant()
+            Return b = "1" OrElse b = "true" OrElse b = "yes"
+        Case "SELECTOR"
+            Return If(t.Length >= 10, t.Substring(0, 10).ToLowerInvariant(), "")
+        Case Else
+            Return t
+    End Select
+End Function
+
+' ---- ABI decoding of the declared (string | uint256) arguments ----------------------
+' Every offset and length is bounds-checked: real call data is not always well formed,
+' and a malformed record has to be reported, not take the run down with it.
+Dim decode As Func(Of String, Dictionary(Of Integer, Object)) = Function(hexData As String) As Dictionary(Of Integer, Object)
+    Dim body As String = hexData.Substring(10)
+    Dim words As New List(Of String)
+    Dim p As Integer = 0
+    While p + 64 <= body.Length
+        words.Add(body.Substring(p, 64))
+        p += 64
+    End While
+    Dim res As New Dictionary(Of Integer, Object)
+    For Each kv As KeyValuePair(Of Integer, String) In argTypes
+        If kv.Key >= words.Count Then Throw New FormatException("call data has no argument " & kv.Key)
+        If kv.Value = "ABI_UINT256" Then
+            res(kv.Key) = Convert.ToInt64(words(kv.Key), 16)
+        Else
+            Dim off As Long = Convert.ToInt64(words(kv.Key), 16)
+            If off Mod 32 <> 0 Then Throw New FormatException("misaligned string offset")
+            Dim w0 As Integer = CInt(off \ 32)
+            If w0 >= words.Count Then Throw New FormatException("string offset points past the end of the call data")
+            Dim slen As Integer = CInt(Convert.ToInt64(words(w0), 16))
+            Dim need As Integer = (slen + 31) \ 32
+            If w0 + need > words.Count - 1 Then Throw New FormatException("string runs past the end of the call data")
+            Dim hx As String = String.Concat(words.Skip(w0 + 1).Take(need))
+            Dim raw(slen - 1) As Byte
+            For k As Integer = 0 To slen - 1
+                raw(k) = Convert.ToByte(hx.Substring(k * 2, 2), 16)
+            Next
+            res(kv.Key) = Encoding.UTF8.GetString(raw)
+        End If
+    Next
+    Return res
+End Function
+
+Dim readField As Func(Of JObject, String, String) = Function(o As JObject, fieldPath As String) As String
+    Dim tkn As JToken = o.SelectToken(fieldPath)
+    If tkn Is Nothing OrElse tkn.Type = JTokenType.Null Then Return Nothing
+    ' Newtonsoft turns ISO-8601 strings into date tokens while parsing. Hand them on as
+    ' ISO text again, rather than whatever the culture's default date format would be.
+    If tkn.Type = JTokenType.Date Then
+        Return CDate(CType(tkn, JValue).Value).ToUniversalTime().ToString("o", CultureInfo.InvariantCulture)
+    End If
+    Return Convert.ToString(tkn, CultureInfo.InvariantCulture)
+End Function
+
+' ---- Canonical schema ---------------------------------------------------------------
 Dim dt As New DataTable("ChainTransactions")
 dt.Columns.Add("TxHash", GetType(String))
 dt.Columns.Add("BlockNumber", GetType(Long))
@@ -233,105 +430,142 @@ dt.Columns.Add("TxFailed", GetType(Boolean))
 dt.Columns.Add("SourceMode", GetType(String))
 dt.Columns.Add("RawInput", GetType(String))
 
-Dim epoch As New DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)
-Dim skipped As Integer = 0
+Dim total As Integer = 0, plain As Integer = 0, foreign As Integer = 0, malformed As Integer = 0
+Dim samples As New List(Of String)
 
-For Each tok As JObject In arr
-    Dim inputHex As String = Convert.ToString(tok("input"))
-
-    ' A plain value transfer carries no call data - nothing to validate, so skip it.
-    If inputHex Is Nothing OrElse inputHex.Length < 10 Then
-        skipped += 1
+For Each tok As JToken In recs
+    total += 1
+    Dim rec As JObject = TryCast(tok, JObject)
+    If rec Is Nothing Then
+        malformed += 1
+        If samples.Count < 5 Then samples.Add("record " & total & ": not a JSON object")
         Continue For
     End If
 
-    ' ---- ABI decode: f(string, uint256, string) -------------------------
-    ' Call data is the 4-byte selector followed by 32-byte words. The first and
-    ' third words hold byte offsets to the dynamic strings; the second is the
-    ' uint256 quantity inline.
-    Dim body As String = inputHex.Substring(10)
-    Dim words As New List(Of String)
-    Dim i As Integer = 0
-    While i + 64 <= body.Length
-        words.Add(body.Substring(i, 64))
-        i += 64
-    End While
+    Dim idText As String = If(idField = "", "", If(readField(rec, idField), ""))
+    Try
+        Dim callData As String = If(callField = "", "", If(readField(rec, callField), "")).Trim()
+        If callField <> "" AndAlso callData.Length < 10 Then
+            plain += 1
+            Continue For
+        End If
+        Dim sel As String = If(callData.Length >= 10, callData.Substring(0, 10).ToLowerInvariant(), "")
+        If Not in_LookupMode AndAlso sel <> "" AndAlso Not known.Contains(sel) Then
+            foreign += 1
+            Continue For
+        End If
 
-    If words.Count < 3 Then
-        skipped += 1
-        Continue For
-    End If
+        Dim args As Dictionary(Of Integer, Object) = Nothing
+        If argTypes.Count > 0 AndAlso callData.Length >= 10 Then args = decode(callData)
 
-    Dim qty As Long = Convert.ToInt64(words(1), 16)
-    Dim offs() As Integer = {Convert.ToInt32(words(0), 16) \ 32, Convert.ToInt32(words(2), 16) \ 32}
-    Dim strs(1) As String
-
-    For n As Integer = 0 To 1
-        Dim idx As Integer = offs(n)
-        Dim slen As Integer = Convert.ToInt32(words(idx), 16)
-        Dim sb As New StringBuilder()
-        Dim w As Integer = idx + 1
-        While sb.Length < slen * 2 AndAlso w < words.Count
-            sb.Append(words(w))
-            w += 1
-        End While
-        Dim hx As String = sb.ToString()
-        Dim raw(Math.Max(slen - 1, 0)) As Byte
-        For k As Integer = 0 To slen - 1
-            raw(k) = Convert.ToByte(hx.Substring(k * 2, 2), 16)
+        Dim rw As DataRow = dt.NewRow()
+        rw("TxFailed") = False
+        For Each m As String() In maps
+            Dim val As Object
+            If m(0).Contains(":arg") Then
+                Dim idx As Integer = Convert.ToInt32(m(0).Split(":"c)(1).Substring(3))
+                val = If(args IsNot Nothing AndAlso args.ContainsKey(idx), args(idx), CObj(DBNull.Value))
+            Else
+                Dim rawValue As String = readField(rec, m(0))
+                val = If(rawValue Is Nothing, CObj(DBNull.Value), xform(m(2), rawValue))
+            End If
+            rw(m(1)) = val
         Next
-        strs(n) = Encoding.UTF8.GetString(raw, 0, slen)
-    Next
-
-    ' ---- Normalisation happens on the way in ----------------------------
-    ' Addresses are lower-cased here so EIP-55 checksummed values from the chain
-    ' reconcile against the lower-case forms the ERP stores. Comparing raw would
-    ' fail on every single row.
-    Dim rw As DataRow = dt.NewRow()
-    rw("TxHash") = Convert.ToString(tok("hash")).ToLowerInvariant()
-    rw("BlockNumber") = Convert.ToInt64(Convert.ToString(tok("blockNumber")))
-    rw("EventTimestampUtc") = epoch.AddSeconds(Convert.ToDouble(Convert.ToString(tok("timeStamp"))))
-    rw("SenderAddress") = Convert.ToString(tok("from")).ToLowerInvariant()
-    rw("ContractAddress") = Convert.ToString(tok("to")).ToLowerInvariant()
-    rw("EventSelector") = inputHex.Substring(0, 10).ToLowerInvariant()
-    rw("ShipmentID") = strs(0)
-    rw("OnChainQty") = qty
-    rw("PONumber") = strs(1)
-    rw("TxFailed") = (Convert.ToString(tok("isError")) = "1")
-    rw("SourceMode") = in_SourceMode
-    rw("RawInput") = inputHex
-    dt.Rows.Add(rw)
+        If IsDBNull(rw("EventSelector")) OrElse Convert.ToString(rw("EventSelector")) = "" Then rw("EventSelector") = sel
+        rw("EventSelector") = Convert.ToString(rw("EventSelector")).ToLowerInvariant()
+        rw("SourceMode") = in_SourceMode
+        rw("RawInput") = callData
+        dt.Rows.Add(rw)
+    Catch ex As Exception
+        malformed += 1
+        If samples.Count < 5 Then samples.Add(If(idText = "", "record " & total, idText) & ": " & ex.Message)
+    End Try
 Next
 
 out_dtChain = dt
-out_Summary = String.Format("{0} transactions decoded, {1} skipped (no call data)", dt.Rows.Count, skipped)
+out_Malformed = malformed
+out_Warnings = String.Join(" ; ", samples)
+Dim summaryParts As New List(Of String)
+summaryParts.Add(String.Format("{0} record(s) via profile {1}: {2} decoded", total, profile, dt.Rows.Count))
+If plain > 0 Then summaryParts.Add(plain & " value transfer(s) ignored")
+If foreign > 0 Then summaryParts.Add(foreign & " call(s) to other functions ignored")
+If malformed > 0 Then summaryParts.Add(malformed & " malformed and skipped")
+out_Summary = String.Join(", ", summaryParts)
 '''.strip()
 
 
-def extract_from_mock() -> str:
+def normalise_chain_records() -> str:
     body = sequence(
-        "01a - Extract from mock chain feed",
-        log('"[EXTRACT/MOCK] Reading " & in_MockFilePath')
-        + read_text("in_MockFilePath", "jsonText", name="Read Text File - mock Etherscan response")
-        + deserialize_json("jsonText", "jsonObj")
-        + if_('Convert.ToString(jsonObj("status")) <> "1"',
-              throw('New InvalidOperationException("Explorer returned status=" '
-                    '& Convert.ToString(jsonObj("status")) & " message=" '
-                    '& Convert.ToString(jsonObj("message")))'),
-              name="If - explorer reported an error")
-        + invoke_code(ABI_DECODE_CODE, [
+        "01m - Normalise chain records",
+        deserialize_json("in_JsonText", "jsonObj", name="Deserialize JSON - source records")
+        + invoke_code(NORMALISE_CODE, [
             ("In", "in_Json", "njl:JObject", "jsonObj"),
-            ("In", "in_SourceMode", "x:String", '"MOCK"'),
+            ("In", "in_Profile", "x:String", "in_Profile"),
+            ("In", "in_SourceMode", "x:String", "in_SourceMode"),
+            ("In", "in_LookupMode", "x:Boolean", "in_LookupMode"),
+            ("In", "in_dtMapping", "sd:DataTable", "in_dtMapping"),
+            ("In", "in_dtSignatures", "sd:DataTable", "in_dtSignatures"),
+            ("In", "in_dtProfiles", "sd:DataTable", "in_dtProfiles"),
             ("Out", "out_dtChain", "sd:DataTable", "out_dtChain"),
+            ("Out", "out_Malformed", "x:Int32", "malformed"),
+            ("Out", "out_Warnings", "x:String", "warnings"),
             ("Out", "out_Summary", "x:String", "summary"),
-        ], name="Invoke Code - ABI decode and normalise")
-        + log('"[EXTRACT/MOCK] " & summary'),
-        variables(("x:String", "jsonText"), ("njl:JObject", "jsonObj"), ("x:String", "summary")))
+        ], name="Invoke Code - apply profile and field mappings")
+        + log('"[NORMALISE] " & summary')
+        + if_("malformed > 0",
+              log('"[NORMALISE] Malformed records skipped - " & warnings', level="Warn"),
+              name="If - malformed records"),
+        variables(("njl:JObject", "jsonObj"), ("x:Int32", "malformed"),
+                  ("x:String", "warnings"), ("x:String", "summary")))
 
-    return workflow("01a_Extract_FromMockJson", body, members=[
-        ("in_MockFilePath", "InArgument(x:String)"),
+    return workflow("01m_Normalise_ChainRecords", body, members=[
+        ("in_JsonText", "InArgument(x:String)"),
+        ("in_Profile", "InArgument(x:String)"),
+        ("in_SourceMode", "InArgument(x:String)"),
+        ("in_LookupMode", "InArgument(x:Boolean)"),
+        ("in_dtMapping", "InArgument(sd:DataTable)"),
+        ("in_dtSignatures", "InArgument(sd:DataTable)"),
+        ("in_dtProfiles", "InArgument(sd:DataTable)"),
         ("out_dtChain", "OutArgument(sd:DataTable)"),
     ])
+
+
+def _normalise(mode: str, json_expr: str, profile_expr: str) -> str:
+    """Hand fetched JSON to 01m. Shared by all three extraction workflows."""
+    return invoke_workflow("Workflows\\01m_Normalise_ChainRecords.xaml", [
+        ("In", "in_JsonText", "x:String", json_expr),
+        ("In", "in_Profile", "x:String", profile_expr),
+        ("In", "in_SourceMode", "x:String", f'"{mode}"'),
+        ("In", "in_LookupMode", "x:Boolean", 'Convert.ToString(in_Config("MappingMode")) = "LOOKUP"'),
+        ("In", "in_dtMapping", "sd:DataTable", "in_dtMapping"),
+        ("In", "in_dtSignatures", "sd:DataTable", "in_dtSignatures"),
+        ("In", "in_dtProfiles", "sd:DataTable", "in_dtProfiles"),
+        ("Out", "out_dtChain", "sd:DataTable", "out_dtChain"),
+    ], name="Invoke 01m - normalise records")
+
+
+EXTRACT_MEMBERS = [
+    ("in_Config", f"InArgument({DICT_SO})"),
+    ("in_dtMapping", "InArgument(sd:DataTable)"),
+    ("in_dtSignatures", "InArgument(sd:DataTable)"),
+    ("in_dtProfiles", "InArgument(sd:DataTable)"),
+    ("out_dtChain", "OutArgument(sd:DataTable)"),
+]
+
+
+# ==========================================================================
+# 01a_Extract_FromMockJson
+# ==========================================================================
+def extract_from_mock() -> str:
+    body = sequence(
+        "01a - Extract from a mock chain feed",
+        log('"[EXTRACT/MOCK] Reading " & Convert.ToString(in_Config("MockChainFile"))')
+        + read_text('Convert.ToString(in_Config("MockChainFile"))', "jsonText",
+                    name="Read Text File - mock chain feed")
+        + _normalise("MOCK", "jsonText", 'Convert.ToString(in_Config("ChainProfile"))')
+        + log('"[EXTRACT/MOCK] " & out_dtChain.Rows.Count.ToString() & " transactions decoded"'),
+        variables(("x:String", "jsonText")))
+    return workflow("01a_Extract_FromMockJson", body, members=EXTRACT_MEMBERS)
 
 
 # ==========================================================================
@@ -340,8 +574,7 @@ def extract_from_mock() -> str:
 def extract_from_api() -> str:
     build_url = r'''
 ' Etherscan V2 is multichain: the network is selected by `chainid`, not by a
-' different host. Switching Ethereum -> Polygon is therefore a single config cell,
-' which is what makes the bot chain-agnostic in practice.
+' different host. Switching Ethereum -> Polygon is therefore a single config cell.
 Dim baseUrl As String = Convert.ToString(in_Config("EtherscanBaseUrl")).TrimEnd("/"c)
 Dim chainId As String = Convert.ToString(in_Config("ChainId"))
 Dim address As String = Convert.ToString(in_Config("ContractAddress"))
@@ -350,14 +583,14 @@ Dim maxTx As String = Convert.ToString(in_Config("MaxTransactions"))
 
 out_Url = String.Format("{0}?chainid={1}&module=account&action=txlist&address={2}" & _
                         "&startblock=0&endblock=99999999&page=1&offset={3}&sort=asc&apikey={4}", _
-                        baseUrl, chainId, address, maxTx, apiKey)
+                        baseUrl, chainId, address, maxTx, Uri.EscapeDataString(apiKey))
 
 ' Never log the key itself.
-out_SafeUrl = out_Url.Replace(apiKey, "***REDACTED***")
+out_SafeUrl = If(apiKey = "", out_Url, out_Url.Replace(Uri.EscapeDataString(apiKey), "***REDACTED***"))
 '''.strip()
 
     body = sequence(
-        "01b - Extract from Etherscan V2 API",
+        "01b - Extract from the Etherscan V2 API",
         invoke_code(build_url, [
             ("In", "in_Config", DICT_SO, "in_Config"),
             ("Out", "out_Url", "x:String", "requestUrl"),
@@ -367,51 +600,29 @@ out_SafeUrl = out_Url.Replace(apiKey, "***REDACTED***")
         + f'<ui:HttpClient DisplayName="{lit("HTTP Request - txlist")}" '
           f'EndPoint="{vb("requestUrl")}" Method="GET" AcceptFormat="JSON" '
           f'TimeoutMS="{vb("60000")}" Result="{vb("responseText")}" />'
-        + deserialize_json("responseText", "jsonObj")
-        + if_('Convert.ToString(jsonObj("status")) <> "1"',
-              throw('New InvalidOperationException("Etherscan returned status=" '
-                    '& Convert.ToString(jsonObj("status")) & " message=" '
-                    '& Convert.ToString(jsonObj("message")) & ". A rate limit or an '
-                    'invalid key is the usual cause.")'),
-              name="If - Etherscan reported an error")
-        + invoke_code(ABI_DECODE_CODE, [
-            ("In", "in_Json", "njl:JObject", "jsonObj"),
-            ("In", "in_SourceMode", "x:String", '"API"'),
-            ("Out", "out_dtChain", "sd:DataTable", "out_dtChain"),
-            ("Out", "out_Summary", "x:String", "summary"),
-        ], name="Invoke Code - ABI decode and normalise")
-        + log('"[EXTRACT/API] " & summary'),
-        variables(("x:String", "requestUrl"), ("x:String", "safeUrl"),
-                  ("x:String", "responseText"), ("njl:JObject", "jsonObj"),
-                  ("x:String", "summary")))
-
-    return workflow("01b_Extract_FromEtherscanApi", body, members=[
-        ("in_Config", f"InArgument({DICT_SO})"),
-        ("out_dtChain", "OutArgument(sd:DataTable)"),
-    ])
+        + _normalise("API", "responseText", 'Convert.ToString(in_Config("ChainProfile"))')
+        + log('"[EXTRACT/API] " & out_dtChain.Rows.Count.ToString() & " transactions decoded"'),
+        variables(("x:String", "requestUrl"), ("x:String", "safeUrl"), ("x:String", "responseText")))
+    return workflow("01b_Extract_FromEtherscanApi", body, members=EXTRACT_MEMBERS)
 
 
 # ==========================================================================
 # 01_Extract_Blockchain  (dispatcher)
 # ==========================================================================
 def extract_blockchain() -> str:
+    passthrough = [
+        ("In", "in_Config", DICT_SO, "in_Config"),
+        ("In", "in_dtMapping", "sd:DataTable", "in_dtMapping"),
+        ("In", "in_dtSignatures", "sd:DataTable", "in_dtSignatures"),
+        ("In", "in_dtProfiles", "sd:DataTable", "in_dtProfiles"),
+        ("Out", "out_dtChain", "sd:DataTable", "out_dtChain"),
+    ]
     mock_branch = sequence("MOCK", invoke_workflow(
-        "Workflows\\01a_Extract_FromMockJson.xaml", [
-            ("In", "in_MockFilePath", "x:String", 'Convert.ToString(in_Config("MockChainFile"))'),
-            ("Out", "out_dtChain", "sd:DataTable", "out_dtChain"),
-        ], name="Invoke 01a - mock chain feed"))
-
+        "Workflows\\01a_Extract_FromMockJson.xaml", passthrough, name="Invoke 01a - mock chain feed"))
     api_branch = sequence("API", invoke_workflow(
-        "Workflows\\01b_Extract_FromEtherscanApi.xaml", [
-            ("In", "in_Config", DICT_SO, "in_Config"),
-            ("Out", "out_dtChain", "sd:DataTable", "out_dtChain"),
-        ], name="Invoke 01b - Etherscan API"))
-
+        "Workflows\\01b_Extract_FromEtherscanApi.xaml", passthrough, name="Invoke 01b - Etherscan API"))
     web_branch = sequence("WEB", invoke_workflow(
-        "Workflows\\01c_Extract_FromExplorerUI.xaml", [
-            ("In", "in_Config", DICT_SO, "in_Config"),
-            ("Out", "out_dtChain", "sd:DataTable", "out_dtChain"),
-        ], name="Invoke 01c - explorer UI scraping"))
+        "Workflows\\01c_Extract_FromExplorerUI.xaml", passthrough, name="Invoke 01c - explorer page"))
 
     dispatch = switch(
         'Convert.ToString(in_Config("DataSourceMode")).ToUpperInvariant()',
@@ -423,131 +634,19 @@ def extract_blockchain() -> str:
 
     body = sequence(
         "01 - Extract blockchain transactions",
-        log('"[EXTRACT] Source mode: " & Convert.ToString(in_Config("DataSourceMode"))')
+        log('"[EXTRACT] Source mode " & Convert.ToString(in_Config("DataSourceMode")) '
+            '& ", chain profile " & Convert.ToString(in_Config("EffectiveChainProfile"))')
         + dispatch
         + if_("out_dtChain Is Nothing OrElse out_dtChain.Rows.Count = 0",
               log('"[EXTRACT] No transactions returned for contract "'
                   ' & Convert.ToString(in_Config("ContractAddress"))', level="Warn"),
               name="If - nothing returned"))
-
-    return workflow("01_Extract_Blockchain", body, members=[
-        ("in_Config", f"InArgument({DICT_SO})"),
-        ("out_dtChain", "OutArgument(sd:DataTable)"),
-    ])
+    return workflow("01_Extract_Blockchain", body, members=EXTRACT_MEMBERS)
 
 
 # ==========================================================================
-# 01c_Extract_FromExplorerUI  (placeholder - real browser automation lands in Stage 2b)
+# 01c_Extract_FromExplorerUI
 # ==========================================================================
-MAP_01C_CODE = r'''
-' Parse the explorer's transaction table, then ABI-decode each row's call data exactly as
-' the API reader does. Cells are read positionally, matching COLUMNS in
-' tools/generate_explorer_page.py:
-'   0 TxHash, 1 Method, 2 Block, 3 DateTimeUtc, 4 From, 5 To, 6 Value, 7 Input
-
-' Narrow to the transaction table's body so unrelated tables on the page are ignored.
-Dim tbodyStart As Integer = in_PageHtml.IndexOf("<tbody>", StringComparison.OrdinalIgnoreCase)
-Dim tbodyEnd As Integer = in_PageHtml.IndexOf("</tbody>", StringComparison.OrdinalIgnoreCase)
-If tbodyStart < 0 OrElse tbodyEnd < 0 Then
-    Throw New InvalidOperationException("No transaction table found on the explorer page. " & _
-        "If a live explorer is being targeted, its markup differs from the expected layout.")
-End If
-Dim tbody As String = in_PageHtml.Substring(tbodyStart, tbodyEnd - tbodyStart)
-
-Dim rowRx As New Regex("<tr[^>]*>(.*?)</tr>", RegexOptions.Singleline Or RegexOptions.IgnoreCase)
-Dim cellRx As New Regex("<td[^>]*>(.*?)</td>", RegexOptions.Singleline Or RegexOptions.IgnoreCase)
-Dim tagRx As New Regex("<[^>]+>")
-
-Dim dt As New DataTable("ChainTransactions")
-dt.Columns.Add("TxHash", GetType(String))
-dt.Columns.Add("BlockNumber", GetType(Long))
-dt.Columns.Add("EventTimestampUtc", GetType(DateTime))
-dt.Columns.Add("SenderAddress", GetType(String))
-dt.Columns.Add("ContractAddress", GetType(String))
-dt.Columns.Add("EventSelector", GetType(String))
-dt.Columns.Add("ShipmentID", GetType(String))
-dt.Columns.Add("OnChainQty", GetType(Long))
-dt.Columns.Add("PONumber", GetType(String))
-dt.Columns.Add("TxFailed", GetType(Boolean))
-dt.Columns.Add("SourceMode", GetType(String))
-dt.Columns.Add("RawInput", GetType(String))
-
-Dim scrapedRows As Integer = 0
-Dim skipped As Integer = 0
-
-For Each rowMatch As Match In rowRx.Matches(tbody)
-    Dim cells As New List(Of String)
-    For Each cellMatch As Match In cellRx.Matches(rowMatch.Groups(1).Value)
-        Dim rawCell As String = tagRx.Replace(cellMatch.Groups(1).Value, "")
-        cells.Add(System.Net.WebUtility.HtmlDecode(rawCell).Trim())
-    Next
-    If cells.Count < 8 Then
-        Continue For
-    End If
-    scrapedRows += 1
-
-    Dim inputHex As String = cells(7)
-    If inputHex.Length < 10 Then
-        skipped += 1
-        Continue For
-    End If
-
-    ' ---- ABI decode: f(string, uint256, string) -------------------------
-    Dim payload As String = inputHex.Substring(10)
-    Dim words As New List(Of String)
-    Dim i As Integer = 0
-    While i + 64 <= payload.Length
-        words.Add(payload.Substring(i, 64))
-        i += 64
-    End While
-    If words.Count < 3 Then
-        skipped += 1
-        Continue For
-    End If
-
-    Dim qty As Long = Convert.ToInt64(words(1), 16)
-    Dim offs() As Integer = {Convert.ToInt32(words(0), 16) \ 32, Convert.ToInt32(words(2), 16) \ 32}
-    Dim strs(1) As String
-    For n As Integer = 0 To 1
-        Dim idx As Integer = offs(n)
-        Dim slen As Integer = Convert.ToInt32(words(idx), 16)
-        Dim sb As New StringBuilder()
-        Dim w As Integer = idx + 1
-        While sb.Length < slen * 2 AndAlso w < words.Count
-            sb.Append(words(w))
-            w += 1
-        End While
-        Dim hx As String = sb.ToString()
-        Dim rawBytes(Math.Max(slen - 1, 0)) As Byte
-        For k As Integer = 0 To slen - 1
-            rawBytes(k) = Convert.ToByte(hx.Substring(k * 2, 2), 16)
-        Next
-        strs(n) = Encoding.UTF8.GetString(rawBytes, 0, slen)
-    Next
-
-    Dim rw As DataRow = dt.NewRow()
-    rw("TxHash") = cells(0).ToLowerInvariant()
-    rw("BlockNumber") = Convert.ToInt64(cells(2))
-    rw("EventTimestampUtc") = DateTime.SpecifyKind( _
-        DateTime.ParseExact(cells(3), "yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture), _
-        DateTimeKind.Utc)
-    rw("SenderAddress") = cells(4).ToLowerInvariant()
-    rw("ContractAddress") = cells(5).ToLowerInvariant()
-    rw("EventSelector") = inputHex.Substring(0, 10).ToLowerInvariant()
-    rw("ShipmentID") = strs(0)
-    rw("OnChainQty") = qty
-    rw("PONumber") = strs(1)
-    rw("TxFailed") = False
-    rw("SourceMode") = "WEB"
-    rw("RawInput") = inputHex
-    dt.Rows.Add(rw)
-Next
-
-out_dtChain = dt
-out_Summary = String.Format("{0} table row(s) scraped, {1} decoded, {2} skipped", _
-    scrapedRows, dt.Rows.Count, skipped)
-'''.strip()
-
 RESOLVE_01C_CODE = r'''
 ' The setting may be a project-relative path or a live http(s) URL.
 Dim v As String = Convert.ToString(in_Config("ExplorerPageUrl")).Trim()
@@ -569,27 +668,56 @@ Else
 End If
 '''.strip()
 
+TABLE_TO_JSON_CODE = r'''
+' Turn the explorer's transaction table into JSON records keyed by its own column
+' headers. What each header MEANS is not decided here - that is the EXPLORER_PAGE
+' profile on the FieldMapping sheet, exactly as for every other source.
+Dim tagRx As New Regex("<[^>]+>")
+Dim cellText As Func(Of String, String) = Function(h As String) System.Net.WebUtility.HtmlDecode(tagRx.Replace(h, "")).Trim()
+
+Dim headStart As Integer = in_PageHtml.IndexOf("<thead", StringComparison.OrdinalIgnoreCase)
+Dim bodyStart As Integer = in_PageHtml.IndexOf("<tbody", StringComparison.OrdinalIgnoreCase)
+Dim bodyEnd As Integer = in_PageHtml.IndexOf("</tbody>", StringComparison.OrdinalIgnoreCase)
+If headStart < 0 OrElse bodyStart < headStart OrElse bodyEnd < bodyStart Then
+    Throw New InvalidOperationException("No transaction table (thead and tbody) found on the explorer page.")
+End If
+
+Dim headers As New List(Of String)
+For Each m As Match In Regex.Matches(in_PageHtml.Substring(headStart, bodyStart - headStart), _
+        "<th[^>]*>(.*?)</th>", RegexOptions.Singleline Or RegexOptions.IgnoreCase)
+    headers.Add(cellText(m.Groups(1).Value))
+Next
+
+Dim records As New JArray()
+For Each rowMatch As Match In Regex.Matches(in_PageHtml.Substring(bodyStart, bodyEnd - bodyStart), _
+        "<tr[^>]*>(.*?)</tr>", RegexOptions.Singleline Or RegexOptions.IgnoreCase)
+    Dim cells As MatchCollection = Regex.Matches(rowMatch.Groups(1).Value, "<td[^>]*>(.*?)</td>", _
+        RegexOptions.Singleline Or RegexOptions.IgnoreCase)
+    If cells.Count = 0 Then Continue For
+    Dim o As New JObject()
+    For i As Integer = 0 To Math.Min(cells.Count, headers.Count) - 1
+        o(headers(i)) = cellText(cells(i).Groups(1).Value)
+    Next
+    records.Add(o)
+Next
+
+Dim root As New JObject()
+root("records") = records
+out_JsonText = root.ToString(Newtonsoft.Json.Formatting.None)
+out_RowCount = records.Count
+out_Headers = String.Join(", ", headers)
+'''.strip()
+
 
 def extract_from_ui() -> str:
     """
-    WEB extraction: fetch a blockchain explorer's address page and parse its transaction
-    table, mapping onto the same canonical schema MOCK and API produce.
+    WEB extraction: fetch a blockchain explorer's address page and turn its transaction
+    table into records for 01m.
 
-    What this is, precisely: it parses the explorer's HTML. It does NOT drive a browser
-    with UiPath's Data Scraping wizard. Two concrete reasons:
-
-      * UIAutomation 25.10 removed the classic `ExtractStructuredData` activity. Its
-        replacement, NExtractData, is built around descriptors the Studio recorder
-        generates against a live page - not something to hand-author and call done.
-      * Browser automation needs the UiPath browser extension, which is not installed on
-        this machine, so a recorded version could be neither executed nor verified.
-
-    Parsing the page is a genuine scrape and it is fully testable, which a hand-written
-    descriptor would not be. To move to true browser automation: install the extension
-    (Studio - Home - Tools - UiPath Extensions), record the table with the Data Scraping
-    wizard, and feed its DataTable into the mapping code below. The mapping is what carries
-    the value here and does not change.
-
+    This parses the explorer's HTML; it does not drive a browser. UIAutomation 25.10
+    removed the classic ExtractStructuredData, its replacement is built from
+    recorder-generated descriptors, and browser automation needs the UiPath browser
+    extension. Parsing the page is a genuine scrape and is fully testable.
     ExplorerPageUrl accepts a project-relative path or an http(s) URL.
     """
     resolve = invoke_code(RESOLVE_01C_CODE, [
@@ -613,20 +741,20 @@ def extract_from_ui() -> str:
         resolve
         + log('"[EXTRACT/WEB] Scraping " & location')
         + fetch
-        + invoke_code(MAP_01C_CODE, [
+        + invoke_code(TABLE_TO_JSON_CODE, [
             ("In", "in_PageHtml", "x:String", "pageHtml"),
-            ("Out", "out_dtChain", "sd:DataTable", "out_dtChain"),
-            ("Out", "out_Summary", "x:String", "summary"),
-        ], name="Invoke Code - parse the table and ABI decode")
-        + log('"[EXTRACT/WEB] " & summary'),
-        variables(("x:Boolean", "isRemote"), ("x:String", "location"),
-                  ("x:String", "pageHtml"), ("x:String", "summary")))
+            ("Out", "out_JsonText", "x:String", "jsonText"),
+            ("Out", "out_RowCount", "x:Int32", "rowCount"),
+            ("Out", "out_Headers", "x:String", "headers"),
+        ], name="Invoke Code - read the transaction table")
+        + log('"[EXTRACT/WEB] " & rowCount.ToString() & " table row(s) scraped; columns: " & headers')
+        + _normalise("WEB", "jsonText", 'Convert.ToString(in_Config("WebPageProfile"))')
+        + log('"[EXTRACT/WEB] " & rowCount.ToString() & " table row(s) scraped, " '
+              '& out_dtChain.Rows.Count.ToString() & " decoded"'),
+        variables(("x:Boolean", "isRemote"), ("x:String", "location"), ("x:String", "pageHtml"),
+                  ("x:String", "jsonText"), ("x:Int32", "rowCount"), ("x:String", "headers")))
 
-    return workflow("01c_Extract_FromExplorerUI", body,
-                    members=[
-                        ("in_Config", f"InArgument({DICT_SO})"),
-                        ("out_dtChain", "OutArgument(sd:DataTable)"),
-                    ],
+    return workflow("01c_Extract_FromExplorerUI", body, members=EXTRACT_MEMBERS,
                     extra_imports=["System.Text.RegularExpressions", "System.Net"],
                     extra_refs=["System.Text.RegularExpressions"])
 
@@ -663,13 +791,28 @@ out_Summary = String.Format("{0} shipments, {1} expected milestones", _
             ("In", "in_dtEvents", "sd:DataTable", "out_dtErpEvents"),
             ("Out", "out_Summary", "x:String", "summary"),
         ], name="Invoke Code - normalise ERP addresses")
-        + log('"[ERP] " & summary'),
+        + log('"[ERP] " & summary')
+        # LOOKUP mode: the logistics system's own transaction map says which shipment
+        # and milestone each transaction belongs to, instead of the decoded call data.
+        + if_('Convert.ToString(in_Config("MappingMode")) = "LOOKUP"',
+              sequence("Read the transaction map",
+                       log('"[ERP] MappingMode LOOKUP - reading " & Convert.ToString(in_Config("TxShipmentMapFile"))')
+                       + excel_scope('Convert.ToString(in_Config("TxShipmentMapFile"))',
+                                     sequence("Read TxMap", excel_read("TxMap", "out_dtTxMap",
+                                                                       name="Read Range - TxMap")),
+                                     name="Excel Application Scope - TxShipmentMap.xlsx")
+                       + log('"[ERP] " & out_dtTxMap.Rows.Count.ToString() & " transaction mapping(s) loaded"')),
+              sequence("No transaction map",
+                       assign("out_dtTxMap", 'New DataTable("TxMap")', type_ref="sd:DataTable",
+                              name="Assign - empty transaction map")),
+              name="If - MappingMode LOOKUP"),
         variables(("x:String", "summary")))
 
     return workflow("02_Extract_Logistics", body, members=[
         ("in_Config", f"InArgument({DICT_SO})"),
         ("out_dtShipments", "OutArgument(sd:DataTable)"),
         ("out_dtErpEvents", "OutArgument(sd:DataTable)"),
+        ("out_dtTxMap", "OutArgument(sd:DataTable)"),
     ])
 
 
@@ -679,16 +822,30 @@ out_Summary = String.Format("{0} shipments, {1} expected milestones", _
 def preprocess_map() -> str:
     code = r'''
 ' Join the chain feed to the ERP expectation for the same (shipment, milestone).
-' The milestone name is resolved from the function selector via the EventSequence
-' sheet, so adding a new milestone is a config change, not a workflow change.
+' Two concerns, two sheets: EventSignatures is the contract's function table and
+' says which milestone a selector records; EventSequence says what ORDER milestones
+' must happen in. Adding a milestone is a config change, not a workflow change.
 Dim selectorToEvent As New Dictionary(Of String, String)(StringComparer.OrdinalIgnoreCase)
+For Each r As DataRow In in_dtSignatures.Rows
+    Dim sel As String = Convert.ToString(r("MethodId")).Trim().ToLowerInvariant()
+    If sel <> "" Then selectorToEvent(sel) = Convert.ToString(r("EventName")).Trim()
+Next
 Dim eventOrder As New Dictionary(Of String, Integer)(StringComparer.OrdinalIgnoreCase)
 For Each r As DataRow In in_dtSequence.Rows
-    Dim sel As String = Convert.ToString(r("MethodId")).Trim().ToLowerInvariant()
-    Dim nm As String = Convert.ToString(r("EventName")).Trim()
-    If sel <> "" Then selectorToEvent(sel) = nm
-    eventOrder(nm) = Convert.ToInt32(r("StepOrder"))
+    eventOrder(Convert.ToString(r("EventName")).Trim()) = Convert.ToInt32(r("StepOrder"))
 Next
+
+' LOOKUP: the logistics system's transaction map is authoritative for which shipment
+' and milestone a transaction belongs to - the mode for ledgers whose payload the
+' bot cannot decode.
+Dim lookupMode As Boolean = (Convert.ToString(in_Config("MappingMode")) = "LOOKUP")
+Dim txMap As New Dictionary(Of String, DataRow)(StringComparer.OrdinalIgnoreCase)
+If lookupMode AndAlso in_dtTxMap IsNot Nothing Then
+    For Each r As DataRow In in_dtTxMap.Rows
+        txMap(Convert.ToString(r("TxHash")).Trim().ToLowerInvariant()) = r
+    Next
+End If
+Dim notInMap As Integer = 0
 
 ' ERP lookups, keyed the same way.
 Dim erpEvent As New Dictionary(Of String, DataRow)(StringComparer.OrdinalIgnoreCase)
@@ -731,6 +888,17 @@ For Each c As DataRow In in_dtChain.Rows
     Dim sid As String = Convert.ToString(c("ShipmentID")).Trim()
     Dim evName As String = ""
     If selectorToEvent.ContainsKey(sel) Then evName = selectorToEvent(sel)
+    Dim mapMiss As Boolean = False
+    If lookupMode Then
+        Dim h As String = Convert.ToString(c("TxHash")).Trim().ToLowerInvariant()
+        If txMap.ContainsKey(h) Then
+            sid = Convert.ToString(txMap(h)("ShipmentID")).Trim()
+            evName = Convert.ToString(txMap(h)("EventName")).Trim()
+        Else
+            mapMiss = True
+            notInMap += 1
+        End If
+    End If
 
     Dim rw As DataRow = dt.NewRow()
     rw("RowNo") = n
@@ -748,6 +916,7 @@ For Each c As DataRow In in_dtChain.Rows
 
     Dim status As String = "MATCHED"
     If evName = "" Then status = "UNKNOWN_SELECTOR"
+    If mapMiss Then status = "NOT_IN_TX_MAP"
 
     Dim key As String = sid & "|" & evName
     If erpEvent.ContainsKey(key) Then
@@ -783,7 +952,8 @@ For Each c As DataRow In in_dtChain.Rows
 Next
 
 out_dtJoined = dt
-out_Summary = String.Format("{0} rows joined, {1} unmatched", dt.Rows.Count, unmatched)
+out_Summary = String.Format("{0} rows joined, {1} unmatched (mapping {2}{3})", dt.Rows.Count, unmatched, _
+    If(lookupMode, "LOOKUP", "DECODE"), If(notInMap > 0, ", " & notInMap & " not in the transaction map", ""))
 '''.strip()
 
     body = sequence(
@@ -794,6 +964,9 @@ out_Summary = String.Format("{0} rows joined, {1} unmatched", dt.Rows.Count, unm
             ("In", "in_dtShipments", "sd:DataTable", "in_dtShipments"),
             ("In", "in_dtErpEvents", "sd:DataTable", "in_dtErpEvents"),
             ("In", "in_dtSequence", "sd:DataTable", "in_dtSequence"),
+            ("In", "in_dtSignatures", "sd:DataTable", "in_dtSignatures"),
+            ("In", "in_dtTxMap", "sd:DataTable", "in_dtTxMap"),
+            ("In", "in_Config", DICT_SO, "in_Config"),
             ("Out", "out_dtJoined", "sd:DataTable", "out_dtJoined"),
             ("Out", "out_Summary", "x:String", "summary"),
         ], name="Invoke Code - map and join")
@@ -801,10 +974,13 @@ out_Summary = String.Format("{0} rows joined, {1} unmatched", dt.Rows.Count, unm
         variables(("x:String", "summary")))
 
     return workflow("03_Preprocess_Map", body, members=[
+        ("in_Config", f"InArgument({DICT_SO})"),
         ("in_dtChain", "InArgument(sd:DataTable)"),
         ("in_dtShipments", "InArgument(sd:DataTable)"),
         ("in_dtErpEvents", "InArgument(sd:DataTable)"),
         ("in_dtSequence", "InArgument(sd:DataTable)"),
+        ("in_dtSignatures", "InArgument(sd:DataTable)"),
+        ("in_dtTxMap", "InArgument(sd:DataTable)"),
         ("out_dtJoined", "OutArgument(sd:DataTable)"),
     ])
 
@@ -1130,6 +1306,13 @@ For Each r As DataRow In io_dtResults.Rows
     If IsDBNull(r("ErpExpectedQty")) Then
         r("R2_Status") = "SKIPPED"
         r("R2_Detail") = "No ERP purchase-order quantity for this shipment"
+        nSkip += 1
+        Continue For
+    End If
+
+    If IsDBNull(r("OnChainQty")) Then
+        r("R2_Status") = "SKIPPED"
+        r("R2_Detail") = "This chain profile does not provide an on-chain quantity"
         nSkip += 1
         Continue For
     End If
@@ -2875,21 +3058,29 @@ def main_workflow() -> str:
             ("Out", "out_dtMapping", "sd:DataTable", "dtMapping"),
             ("Out", "out_dtSequence", "sd:DataTable", "dtSequence"),
             ("Out", "out_dtSignatures", "sd:DataTable", "dtSignatures"),
+            ("Out", "out_dtProfiles", "sd:DataTable", "dtProfiles"),
         ], name="Invoke 00 - Initialise")
         + invoke_workflow("Workflows\\01_Extract_Blockchain.xaml", [
             ("In", "in_Config", DICT_SO, "Config"),
+            ("In", "in_dtMapping", "sd:DataTable", "dtMapping"),
+            ("In", "in_dtSignatures", "sd:DataTable", "dtSignatures"),
+            ("In", "in_dtProfiles", "sd:DataTable", "dtProfiles"),
             ("Out", "out_dtChain", "sd:DataTable", "dtChain"),
         ], name="Invoke 01 - Extract blockchain")
         + invoke_workflow("Workflows\\02_Extract_Logistics.xaml", [
             ("In", "in_Config", DICT_SO, "Config"),
             ("Out", "out_dtShipments", "sd:DataTable", "dtShipments"),
             ("Out", "out_dtErpEvents", "sd:DataTable", "dtErpEvents"),
+            ("Out", "out_dtTxMap", "sd:DataTable", "dtTxMap"),
         ], name="Invoke 02 - Extract logistics")
         + invoke_workflow("Workflows\\03_Preprocess_Map.xaml", [
+            ("In", "in_Config", DICT_SO, "Config"),
             ("In", "in_dtChain", "sd:DataTable", "dtChain"),
             ("In", "in_dtShipments", "sd:DataTable", "dtShipments"),
             ("In", "in_dtErpEvents", "sd:DataTable", "dtErpEvents"),
             ("In", "in_dtSequence", "sd:DataTable", "dtSequence"),
+            ("In", "in_dtSignatures", "sd:DataTable", "dtSignatures"),
+            ("In", "in_dtTxMap", "sd:DataTable", "dtTxMap"),
             ("Out", "out_dtJoined", "sd:DataTable", "dtJoined"),
         ], name="Invoke 03 - Preprocess and map")
         + log('"[MAIN] Joined rows ready: " & dtJoined.Rows.Count.ToString()')
@@ -2994,6 +3185,7 @@ def main_workflow() -> str:
             ("sd:DataTable", "dtRules"), ("sd:DataTable", "dtWallets"),
             ("sd:DataTable", "dtMapping"), ("sd:DataTable", "dtSequence"),
             ("sd:DataTable", "dtSignatures"), ("sd:DataTable", "dtChain"),
+            ("sd:DataTable", "dtProfiles"), ("sd:DataTable", "dtTxMap"),
             ("sd:DataTable", "dtShipments"), ("sd:DataTable", "dtErpEvents"),
             ("sd:DataTable", "dtJoined"), ("sd:DataTable", "dtResults"),
             ("sd:DataTable", "dtExceptions"),
@@ -3015,6 +3207,7 @@ GENERATORS = {
     os.path.join(WF, "01a_Extract_FromMockJson.xaml"): extract_from_mock,
     os.path.join(WF, "01b_Extract_FromEtherscanApi.xaml"): extract_from_api,
     os.path.join(WF, "01c_Extract_FromExplorerUI.xaml"): extract_from_ui,
+    os.path.join(WF, "01m_Normalise_ChainRecords.xaml"): normalise_chain_records,
     os.path.join(WF, "02_Extract_Logistics.xaml"): extract_logistics,
     os.path.join(WF, "03_Preprocess_Map.xaml"): preprocess_map,
     os.path.join(WF, "05_Validate_Engine.xaml"): validate_engine,
