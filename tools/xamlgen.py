@@ -198,6 +198,12 @@ def if_(condition_expr: str, then_xml: str, else_xml: str = "", name: str = "If"
             f'<If.Then>{then_xml}</If.Then>{else_block}</If>')
 
 
+def do_while(condition_expr: str, body_xml: str, name: str = "Do While") -> str:
+    """Do While: the body runs once, then repeats while the condition holds."""
+    return (f'<DoWhile DisplayName="{lit(name)}" Condition="{vb(condition_expr)}">'
+            f'{body_xml}</DoWhile>')
+
+
 def for_each_row(dt_expr: str, body_xml: str, row_var: str = "CurrentRow",
                  name: str = "For Each Row in DataTable") -> str:
     return (f'<ui:ForEachRow DisplayName="{lit(name)}" DataTable="{vb(dt_expr)}">'

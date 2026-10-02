@@ -20,7 +20,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from xamlgen import (  # noqa: E402
-    assign, deserialize_json, excel_read, excel_scope, for_each_row, if_,
+    assign, deserialize_json, do_while, excel_read, excel_scope, for_each_row, if_,
     invoke_code, invoke_workflow, lit, log, read_text, sequence, switch, throw,
     try_catch, variables, vb, workflow, write_text,
 )
@@ -49,6 +49,10 @@ HITL_LABEL_EXPR = (
 
 WEBHOOK_URL_EXPR = 'Convert.ToString(in_Config("AlertWebhookUrl"))'
 QUEUE_NAME_EXPR = 'Convert.ToString(in_Config("QueueName"))'
+QUEUE_NAME_EXPR_MAIN = 'Convert.ToString(Config("QueueName"))'
+VERDICT_EXPR = ('Convert.ToString(shipmentStats("Fail")) & " failed, " & '
+                'Convert.ToString(shipmentStats("Warning")) & " warning, " & '
+                'Convert.ToString(shipmentStats("Pass")) & " passed"')
 EXPLORER_URL_EXPR = 'Convert.ToString(in_Config("ExplorerPageUrl"))'
 
 HITL_OPTIONS_EXPR = (
@@ -2547,8 +2551,7 @@ out_Summary = String.Format("dry run: {0} payload(s) written to {1}", arr.Count,
     ])
 
 
-def queue_performer() -> str:
-    rebuild = r'''
+REHYDRATE_CODE = r'''
 ' Rehydrate one shipment's transactions back into the schema the validation engine
 ' expects. The engine is unchanged between batch and queue mode - only the source of
 ' its DataTable differs.
@@ -2596,15 +2599,48 @@ out_dtJoined = dt
 out_Summary = String.Format("{0} transaction(s) rehydrated", dt.Rows.Count)
 '''.strip()
 
-    process_one = sequence(
-        "Process one queue item",
-        assign("eventsJson", 'Convert.ToString(txItem.SpecificContent("EventsJson"))',
-               name="Assign - payload")
-        + assign("shipmentId", 'Convert.ToString(txItem.SpecificContent("ShipmentID"))',
-                 name="Assign - shipment")
-        + log('"[PERFORM] " & shipmentId')
-        + invoke_code(rebuild, [
-            ("In", "in_EventsJson", "x:String", "eventsJson"),
+ACCUMULATE_CODE = r'''
+' Add one shipment's verdict to the running totals for this job.
+For Each k As String In New String() {"Total", "Pass", "Warning", "Fail", "Escalations"}
+    Dim v As Integer = 0
+    If in_Stats IsNot Nothing AndAlso in_Stats.ContainsKey(k) Then v = Convert.ToInt32(in_Stats(k))
+    io_Totals(k) = If(io_Totals.ContainsKey(k), Convert.ToInt32(io_Totals(k)), 0) + v
+Next
+io_Totals("Shipments") = If(io_Totals.ContainsKey("Shipments"), Convert.ToInt32(io_Totals("Shipments")), 0) + 1
+'''.strip()
+
+LOAD_DRYRUN_CODE = r'''
+' DRYRUN: consume the newest payload file the Dispatcher wrote, in place of an
+' Orchestrator queue. Same payloads, same processing - only the transport differs.
+Dim folder As String = Path.Combine(Convert.ToString(in_Config("ReportsFolder")), "QueueDryRun")
+Dim dt As New DataTable("Payloads")
+dt.Columns.Add("Reference", GetType(String))
+dt.Columns.Add("ShipmentID", GetType(String))
+dt.Columns.Add("EventsJson", GetType(String))
+out_Source = ""
+If Directory.Exists(folder) Then
+    Dim latest As FileInfo = New DirectoryInfo(folder).GetFiles("queue_payloads_*.json") _
+        .OrderByDescending(Function(f) f.LastWriteTimeUtc).FirstOrDefault()
+    If latest IsNot Nothing Then
+        out_Source = latest.FullName
+        For Each tok As JToken In JArray.Parse(File.ReadAllText(latest.FullName))
+            dt.Rows.Add(Convert.ToString(tok("Reference")), Convert.ToString(tok("ShipmentID")), _
+                        Convert.ToString(tok("EventsJson")))
+        Next
+    End If
+End If
+out_dtPayloads = dt
+'''.strip()
+
+
+# --------------------------------------------------------------------------
+# Queue/ProcessShipment - one unit of work, identical in both transports
+# --------------------------------------------------------------------------
+def process_shipment() -> str:
+    body = sequence(
+        "Process one shipment",
+        invoke_code(REHYDRATE_CODE, [
+            ("In", "in_EventsJson", "x:String", "in_EventsJson"),
             ("Out", "out_dtJoined", "sd:DataTable", "dtJoined"),
             ("Out", "out_Summary", "x:String", "summary"),
         ], name="Invoke Code - rehydrate the shipment")
@@ -2615,39 +2651,173 @@ out_Summary = String.Format("{0} transaction(s) rehydrated", dt.Rows.Count)
             ("In", "in_dtWallets", "sd:DataTable", "in_dtWallets"),
             ("Out", "out_dtResults", "sd:DataTable", "dtResults"),
             ("Out", "out_dtExceptions", "sd:DataTable", "dtExceptions"),
-            ("Out", "out_Stats", DICT_SO, "Stats"),
+            ("Out", "out_Stats", DICT_SO, "out_Stats"),
         ], name="Invoke 05 - Validation engine")
-        + f'<ui:SetTransactionStatus DisplayName="{lit("Set Transaction Status - Successful")}" '
-          f'TransactionItem="{vb("txItem")}" Status="Successful" />'
-        + log('"[PERFORM] " & shipmentId & ": " & Convert.ToString(Stats("Fail")) '
-              '& " failure(s), " & Convert.ToString(Stats("Warning")) & " warning(s)"'))
+        + invoke_workflow("Workflows\\06_HumanInTheLoop_Escalation.xaml", [
+            ("In", "in_Config", DICT_SO, "in_Config"),
+            ("InOut", "io_dtResults", "sd:DataTable", "dtResults"),
+            ("Out", "out_EscalationCount", "x:Int32", "escalations"),
+        ], name="Invoke 06 - Human-in-the-loop escalation")
+        # Queue mode writes evidence exactly as batch mode does. A verdict that never
+        # reached the audit chain would be unprovable after the fact.
+        + invoke_workflow("Workflows\\10_AuditLog_Chained.xaml", [
+            ("In", "in_Config", DICT_SO, "in_Config"),
+            ("In", "in_dtResults", "sd:DataTable", "dtResults"),
+            ("Out", "out_AuditPath", "x:String", "out_AuditPath"),
+            ("Out", "out_HeadHash", "x:String", "out_HeadHash"),
+        ], name="Invoke 10 - Append audit log"),
+        variables(("sd:DataTable", "dtJoined"), ("sd:DataTable", "dtResults"),
+                  ("sd:DataTable", "dtExceptions"), ("x:Int32", "escalations"),
+                  ("x:String", "summary")))
 
-    body = sequence(
-        "Performer - validate one shipment per queue transaction",
-        f'<ui:GetQueueItem DisplayName="{lit("Get Transaction Item")}" '
-        f'QueueType="{vb(QUEUE_NAME_EXPR)}" '
-        f'TransactionItem="{vb("txItem")}" />'
-        + if_("txItem IsNot Nothing",
-              try_catch(
-                  process_one,
-                  sequence("Report the failure to Orchestrator",
-                           log('"[PERFORM] " & shipmentId & " failed: " & exception.Message', level="Error")
-                           + f'<ui:SetTransactionStatus DisplayName="{lit("Set Transaction Status - Failed")}" '
-                             f'TransactionItem="{vb("txItem")}" Status="Failed" ErrorType="Application" '
-                             f'Reason="{vb("exception.Message")}" />'),
-                  name="Try Catch - transaction processing"),
-              sequence("Queue empty", log('"[PERFORM] Queue is empty - nothing to process."')),
-              name="If - a transaction was dequeued"),
-        variables(("ui:QueueItem", "txItem"), ("x:String", "eventsJson"),
-                  ("x:String", "shipmentId"), ("x:String", "summary"),
-                  ("sd:DataTable", "dtJoined"), ("sd:DataTable", "dtResults"),
-                  ("sd:DataTable", "dtExceptions"), (DICT_SO, "Stats")))
-
-    return workflow("Performer", body, members=[
+    return workflow("ProcessShipment", body, members=[
         ("in_Config", f"InArgument({DICT_SO})"),
         ("in_dtRules", "InArgument(sd:DataTable)"),
         ("in_dtWallets", "InArgument(sd:DataTable)"),
+        ("in_EventsJson", "InArgument(x:String)"),
+        ("out_Stats", f"OutArgument({DICT_SO})"),
+        ("out_AuditPath", "OutArgument(x:String)"),
+        ("out_HeadHash", "OutArgument(x:String)"),
     ])
+
+
+# --------------------------------------------------------------------------
+# Queue/Performer - an Orchestrator entry point
+# --------------------------------------------------------------------------
+# Orchestrator starts an entry point with no arguments, so the Performer reads its
+# own configuration. It then drains the queue in a loop, bounded by
+# QueueMaxItemsPerJob so a queue that keeps refilling cannot hold a robot forever.
+def queue_performer() -> str:
+    def tot(key: str) -> str:
+        """VB for one running total, zero when nothing has been added yet."""
+        return f'Convert.ToString(If(totals.ContainsKey("{key}"), totals("{key}"), 0))'
+
+    process_args = [
+        ("In", "in_Config", DICT_SO, "Config"),
+        ("In", "in_dtRules", "sd:DataTable", "dtRules"),
+        ("In", "in_dtWallets", "sd:DataTable", "dtWallets"),
+        ("In", "in_EventsJson", "x:String", "eventsJson"),
+        ("Out", "out_Stats", DICT_SO, "shipmentStats"),
+        ("Out", "out_AuditPath", "x:String", "auditPath"),
+        ("Out", "out_HeadHash", "x:String", "headHash"),
+    ]
+    accumulate = invoke_code(ACCUMULATE_CODE, [
+        ("InOut", "io_Totals", DICT_SO, "totals"),
+        ("In", "in_Stats", DICT_SO, "shipmentStats"),
+    ], name="Invoke Code - add to the job totals")
+
+    shipment_line = log('"[PERFORM] " & shipmentId & ": " & Convert.ToString(shipmentStats("Total")) '
+                        '& " transaction(s), " & Convert.ToString(shipmentStats("Fail")) & " failed, " '
+                        '& Convert.ToString(shipmentStats("Warning")) & " warning"')
+
+    status_output = (
+        '<ui:SetTransactionStatus.Output>'
+        '<scg:Dictionary x:TypeArguments="x:String, InArgument">'
+        f'<InArgument x:TypeArguments="x:String" x:Key="Verdict">{vb(VERDICT_EXPR)}</InArgument>'
+        f'<InArgument x:TypeArguments="x:String" x:Key="AuditChainHead">{vb("headHash")}</InArgument>'
+        '</scg:Dictionary></ui:SetTransactionStatus.Output>')
+
+    one_item = sequence(
+        "Process the dequeued shipment",
+        assign("eventsJson", 'Convert.ToString(txItem.SpecificContent("EventsJson"))', name="Assign - payload")
+        + assign("shipmentId", 'Convert.ToString(txItem.SpecificContent("ShipmentID"))', name="Assign - shipment")
+        + invoke_workflow("Workflows\\Queue\\ProcessShipment.xaml", process_args,
+                          name="Invoke ProcessShipment")
+        + accumulate
+        + shipment_line
+        + f'<ui:SetTransactionStatus DisplayName="{lit("Set Transaction Status - Successful")}" '
+          f'TransactionItem="{vb("txItem")}" Status="Successful">{status_output}</ui:SetTransactionStatus>')
+
+    orchestrator = sequence(
+        "Drain the Orchestrator queue",
+        log('"[PERFORM] Draining " & Convert.ToString(Config("QueueName")) & ", up to " '
+            '& maxItems.ToString() & " item(s) this job"')
+        + do_while(
+            "txItem IsNot Nothing AndAlso processed < maxItems",
+            sequence("Take the next item",
+                     f'<ui:GetQueueItem DisplayName="{lit("Get Transaction Item")}" '
+                     f'QueueType="{vb(QUEUE_NAME_EXPR_MAIN)}" TransactionItem="{vb("txItem")}" />'
+                     + if_("txItem IsNot Nothing",
+                           sequence("Process and report",
+                                    assign("processed", "processed + 1", type_ref="x:Int32",
+                                           name="Assign - count this item")
+                                    + try_catch(
+                                        one_item,
+                                        sequence("Report the failure to Orchestrator",
+                                                 log('"[PERFORM] " & shipmentId & " failed: " & exception.Message',
+                                                     level="Error")
+                                                 + f'<ui:SetTransactionStatus DisplayName="{lit("Set Transaction Status - Failed")}" '
+                                                   f'TransactionItem="{vb("txItem")}" Status="Failed" '
+                                                   f'ErrorType="Application" Reason="{vb("exception.Message")}" />'),
+                                        name="Try Catch - one transaction")),
+                           sequence("Queue empty", log('"[PERFORM] Queue is empty."')),
+                           name="If - a transaction was dequeued")),
+            name="Do While - items remain"))
+
+    dryrun = sequence(
+        "Consume the dry-run payload file",
+        invoke_code(LOAD_DRYRUN_CODE, [
+            ("In", "in_Config", DICT_SO, "Config"),
+            ("Out", "out_dtPayloads", "sd:DataTable", "dtPayloads"),
+            ("Out", "out_Source", "x:String", "payloadSource"),
+        ], name="Invoke Code - load the newest dry-run payloads")
+        + if_('payloadSource = ""',
+              log('"[PERFORM] No dry-run payloads found. Run Main with RunMode=DISPATCH first."', level="Warn"),
+              log('"[PERFORM] DRYRUN - consuming " & dtPayloads.Rows.Count.ToString() & " payload(s) from " '
+                  '& Path.GetFileName(payloadSource)'),
+              name="If - payloads available")
+        + for_each_row("dtPayloads",
+                       sequence("One payload",
+                                assign("eventsJson", 'Convert.ToString(CurrentPayload("EventsJson"))',
+                                       name="Assign - payload")
+                                + assign("shipmentId", 'Convert.ToString(CurrentPayload("ShipmentID"))',
+                                         name="Assign - shipment")
+                                + invoke_workflow("Workflows\\Queue\\ProcessShipment.xaml", process_args,
+                                                  name="Invoke ProcessShipment")
+                                + accumulate
+                                + shipment_line),
+                       row_var="CurrentPayload", name="For Each Row - payloads"))
+
+    body = sequence(
+        "Performer - validate queued shipments",
+        log('"=== Performer starting ==="')
+        + assign("projectRoot", "Directory.GetCurrentDirectory()")
+        + assign("configPath", 'Path.Combine(projectRoot, "Data", "Config.xlsx")')
+        + invoke_workflow("Workflows\\00_Init_ReadConfig.xaml", [
+            ("In", "in_ConfigPath", "x:String", "configPath"),
+            ("In", "in_ProjectRoot", "x:String", "projectRoot"),
+            ("Out", "out_Config", DICT_SO, "Config"),
+            ("Out", "out_dtRules", "sd:DataTable", "dtRules"),
+            ("Out", "out_dtWallets", "sd:DataTable", "dtWallets"),
+        ], name="Invoke 00 - read configuration")
+        + assign("totals", "New Dictionary(Of String, Object)", type_ref=DICT_SO, name="Assign - empty totals")
+        + assign("maxItems",
+                 'If(Config.ContainsKey("QueueMaxItemsPerJob") AndAlso '
+                 'Convert.ToString(Config("QueueMaxItemsPerJob")) <> "", '
+                 'Convert.ToInt32(Config("QueueMaxItemsPerJob")), 100)',
+                 type_ref="x:Int32", name="Assign - item limit")
+        + if_('Convert.ToString(Config("QueueMode")).Trim().ToUpperInvariant() = "ORCHESTRATOR"',
+              orchestrator, dryrun, name="If - Orchestrator queue or dry run")
+        + log('"[PERFORM] total=" & ' + tot("Total") + ' & " pass=" & ' + tot("Pass")
+              + ' & " warn=" & ' + tot("Warning") + ' & " fail=" & ' + tot("Fail")
+              + ' & " escalations=" & ' + tot("Escalations")
+              + ' & " across " & ' + tot("Shipments") + ' & " shipment(s)"')
+        + invoke_workflow("Workflows\\12_Verify_AuditChain.xaml", [
+            ("In", "in_AuditPath", "x:String", "auditPath"),
+            ("Out", "out_IsValid", "x:Boolean", "chainValid"),
+            ("Out", "out_Report", "x:String", "chainReport"),
+        ], name="Invoke 12 - Verify audit chain")
+        + log('"=== Performer finished ==="'),
+        variables(("x:String", "projectRoot"), ("x:String", "configPath"),
+                  (DICT_SO, "Config"), ("sd:DataTable", "dtRules"), ("sd:DataTable", "dtWallets"),
+                  (DICT_SO, "totals"), (DICT_SO, "shipmentStats"),
+                  ("ui:QueueItem", "txItem"), ("x:Int32", "processed"), ("x:Int32", "maxItems"),
+                  ("x:String", "eventsJson"), ("x:String", "shipmentId"),
+                  ("sd:DataTable", "dtPayloads"), ("x:String", "payloadSource"),
+                  ("x:String", "auditPath"), ("x:String", "headHash"),
+                  ("x:Boolean", "chainValid"), ("x:String", "chainReport")))
+
+    return workflow("Performer", body)
 
 
 DASHBOARD_CODE = r'''
@@ -3343,6 +3513,7 @@ GENERATORS = {
     os.path.join(WF, "13_Report_Dashboard.xaml"): report_dashboard,
     os.path.join(QUEUE, "Dispatcher.xaml"): queue_dispatcher,
     os.path.join(QUEUE, "Performer.xaml"): queue_performer,
+    os.path.join(QUEUE, "ProcessShipment.xaml"): process_shipment,
     os.path.join(RULES, "R1_TimestampCheck.xaml"): r1_timestamp,
     os.path.join(RULES, "R2_QuantityMatch.xaml"): r2_quantity,
     os.path.join(RULES, "R3_AddressWhitelist.xaml"): r3_whitelist,
@@ -3350,6 +3521,49 @@ GENERATORS = {
     os.path.join(RULES, "R5_SequenceValidation.xaml"): r5_sequence,
     os.path.join(RULES, "R6_SmartContractEvent.xaml"): r6_contract_event,
 }
+
+
+def ensure_entry_points(paths: list[str]) -> None:
+    """
+    Register extra entry points in project.json and Studio's entry-points.json.
+    Idempotent; existing entries and their IDs are left alone.
+    """
+    import json
+    import uuid as _uuid
+    pj_path = os.path.join(PROJ, "project.json")
+    with open(pj_path, encoding="utf-8-sig") as f:
+        pj = json.load(f)
+    eps = pj.setdefault("entryPoints", [])
+    known = {e.get("filePath") for e in eps}
+    added = []
+    for rel in paths:
+        if rel not in known:
+            eps.append({"filePath": rel, "uniqueId": str(_uuid.uuid5(_uuid.NAMESPACE_URL, "blv-ep/" + rel)),
+                        "input": [], "output": []})
+            added.append(rel)
+    if added:
+        with open(pj_path, "w", encoding="utf-8") as f:
+            json.dump(pj, f, indent=2)
+            f.write("\n")
+
+    ep_path = os.path.join(PROJ, "entry-points.json")
+    if os.path.exists(ep_path):
+        with open(ep_path, encoding="utf-8-sig") as f:
+            ep = json.load(f)
+        have = {e.get("filePath") for e in ep.get("entryPoints", [])}
+        by_id = {e["filePath"]: e["uniqueId"] for e in eps}
+        changed = False
+        for rel in paths:
+            if rel not in have:
+                ep.setdefault("entryPoints", []).append(
+                    {"filePath": rel, "uniqueId": by_id[rel], "type": "process"})
+                changed = True
+        if changed:
+            with open(ep_path, "w", encoding="utf-8") as f:
+                json.dump(ep, f, indent=2)
+                f.write("\n")
+    for rel in added:
+        print("entry point registered:", rel)
 
 
 def main() -> None:
@@ -3360,6 +3574,7 @@ def main() -> None:
         with open(path, "w", encoding="utf-8") as f:
             f.write(gen())
         print("wrote:", os.path.relpath(path, ROOT))
+    ensure_entry_points(["Workflows\\Queue\\Performer.xaml"])
 
 
 if __name__ == "__main__":

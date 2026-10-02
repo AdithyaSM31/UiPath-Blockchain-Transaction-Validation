@@ -17,7 +17,7 @@
   "entitiesStores": [],
   "schemaVersion": "4.0",
   "studioVersion": "25.10.15.0",
-  "projectVersion": "1.0.93",
+  "projectVersion": "1.0.111",
   "runtimeOptions": {
     "autoDispose": false,
     "netFrameworkLazyLoading": false,
@@ -138,6 +138,12 @@
     {
       "filePath": "Tests\\TC07_AuditChain_TamperEvident.xaml",
       "uniqueId": "faf8a3f2-9123-5503-b9ff-5e95f21b967c",
+      "input": [],
+      "output": []
+    },
+    {
+      "filePath": "Workflows\\Queue\\Performer.xaml",
+      "uniqueId": "0de5e712-01cf-570e-9c0e-7133a9156de5",
       "input": [],
       "output": []
     }
