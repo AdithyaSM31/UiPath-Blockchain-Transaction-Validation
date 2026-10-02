@@ -1,13 +1,22 @@
-<Activity mc:Ignorable="sap sap2010" x:Class="_02_Extract_Logistics" xmlns="http://schemas.microsoft.com/netfx/2009/xaml/activities" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" xmlns:sap="http://schemas.microsoft.com/netfx/2009/xaml/activities/presentation" xmlns:sap2010="http://schemas.microsoft.com/netfx/2010/xaml/activities/presentation" xmlns:scg="clr-namespace:System.Collections.Generic;assembly=System.Private.CoreLib" xmlns:sco="clr-namespace:System.Collections.ObjectModel;assembly=System.Private.CoreLib" xmlns:sd="clr-namespace:System.Data;assembly=System.Data.Common" xmlns:ui="http://schemas.uipath.com/workflow/activities" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+<Activity mc:Ignorable="sap sap2010" x:Class="_02_Extract_Logistics" mva:VisualBasic.Settings="{x:Null}"
+ xmlns="http://schemas.microsoft.com/netfx/2009/xaml/activities"
+ xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+ xmlns:mva="clr-namespace:Microsoft.VisualBasic.Activities;assembly=System.Activities"
+ xmlns:njl="clr-namespace:Newtonsoft.Json.Linq;assembly=Newtonsoft.Json"
+ xmlns:s="clr-namespace:System;assembly=System.Private.CoreLib"
+ xmlns:sap="http://schemas.microsoft.com/netfx/2009/xaml/activities/presentation"
+ xmlns:sap2010="http://schemas.microsoft.com/netfx/2010/xaml/activities/presentation"
+ xmlns:scg="clr-namespace:System.Collections.Generic;assembly=System.Private.CoreLib"
+ xmlns:sco="clr-namespace:System.Collections.ObjectModel;assembly=mscorlib"
+ xmlns:sd="clr-namespace:System.Data;assembly=System.Data.Common"
+ xmlns:ui="http://schemas.uipath.com/workflow/activities"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
   <x:Members>
     <x:Property Name="in_Config" Type="InArgument(scg:Dictionary(x:String, x:Object))" />
     <x:Property Name="out_dtShipments" Type="OutArgument(sd:DataTable)" />
     <x:Property Name="out_dtErpEvents" Type="OutArgument(sd:DataTable)" />
   </x:Members>
-  <VisualBasic.Settings>
-    <x:Null />
-  </VisualBasic.Settings>
-  <sap2010:WorkflowViewState.IdRef>ActivityBuilder_1</sap2010:WorkflowViewState.IdRef>
+
   <TextExpression.NamespacesForImplementation>
     <sco:Collection x:TypeArguments="x:String">
       <x:String>System.Activities</x:String>
@@ -37,87 +46,40 @@
       <x:String>UiPath.Core</x:String>
       <x:String>UiPath.Core.Activities</x:String>
       <x:String>System.Windows.Markup</x:String>
-      <x:String>GlobalVariablesNamespace</x:String>
-      <x:String>GlobalConstantsNamespace</x:String>
     </sco:Collection>
   </TextExpression.NamespacesForImplementation>
   <TextExpression.ReferencesForImplementation>
     <sco:Collection x:TypeArguments="AssemblyReference">
-      <AssemblyReference>Microsoft.VisualBasic</AssemblyReference>
-      <AssemblyReference>mscorlib</AssemblyReference>
-      <AssemblyReference>Newtonsoft.Json</AssemblyReference>
-      <AssemblyReference>PresentationCore</AssemblyReference>
-      <AssemblyReference>PresentationFramework</AssemblyReference>
-      <AssemblyReference>System</AssemblyReference>
       <AssemblyReference>System.Activities</AssemblyReference>
-      <AssemblyReference>System.ComponentModel.TypeConverter</AssemblyReference>
-      <AssemblyReference>System.Core</AssemblyReference>
-      <AssemblyReference>System.Data</AssemblyReference>
-      <AssemblyReference>System.Data.Common</AssemblyReference>
-      <AssemblyReference>System.Data.DataSetExtensions</AssemblyReference>
-      <AssemblyReference>System.Drawing</AssemblyReference>
-      <AssemblyReference>System.Drawing.Common</AssemblyReference>
-      <AssemblyReference>System.Drawing.Primitives</AssemblyReference>
-      <AssemblyReference>System.Linq</AssemblyReference>
-      <AssemblyReference>System.Net.Mail</AssemblyReference>
-      <AssemblyReference>System.ObjectModel</AssemblyReference>
+      <AssemblyReference>Microsoft.VisualBasic</AssemblyReference>
       <AssemblyReference>System.Private.CoreLib</AssemblyReference>
+      <AssemblyReference>mscorlib</AssemblyReference>
+      <AssemblyReference>System.Data</AssemblyReference>
+      <AssemblyReference>System</AssemblyReference>
+      <AssemblyReference>System.Linq</AssemblyReference>
+      <AssemblyReference>System.Data.Common</AssemblyReference>
+      <AssemblyReference>System.Drawing</AssemblyReference>
+      <AssemblyReference>System.Drawing.Primitives</AssemblyReference>
+      <AssemblyReference>System.Drawing.Common</AssemblyReference>
+      <AssemblyReference>System.Core</AssemblyReference>
       <AssemblyReference>System.Runtime</AssemblyReference>
       <AssemblyReference>System.Security.Cryptography</AssemblyReference>
-      <AssemblyReference>System.Xaml</AssemblyReference>
       <AssemblyReference>System.Xml</AssemblyReference>
       <AssemblyReference>System.Xml.Linq</AssemblyReference>
-      <AssemblyReference>UiPath.Excel</AssemblyReference>
-      <AssemblyReference>UiPath.Excel.Activities</AssemblyReference>
-      <AssemblyReference>UiPath.Mail.Activities</AssemblyReference>
+      <AssemblyReference>PresentationFramework</AssemblyReference>
+      <AssemblyReference>WindowsBase</AssemblyReference>
+      <AssemblyReference>PresentationCore</AssemblyReference>
+      <AssemblyReference>System.Xaml</AssemblyReference>
+      <AssemblyReference>Newtonsoft.Json</AssemblyReference>
       <AssemblyReference>UiPath.System.Activities</AssemblyReference>
       <AssemblyReference>UiPath.UiAutomation.Activities</AssemblyReference>
+      <AssemblyReference>UiPath.Excel.Activities</AssemblyReference>
+      <AssemblyReference>UiPath.Excel</AssemblyReference>
+      <AssemblyReference>UiPath.Mail.Activities</AssemblyReference>
       <AssemblyReference>UiPath.Web.Activities</AssemblyReference>
-      <AssemblyReference>WindowsBase</AssemblyReference>
+      <AssemblyReference>System.Data.DataSetExtensions</AssemblyReference>
+      <AssemblyReference>System.Net.Mail</AssemblyReference>
     </sco:Collection>
   </TextExpression.ReferencesForImplementation>
-  <Sequence DisplayName="02 - Extract logistics (ERP/WMS) records" sap2010:WorkflowViewState.IdRef="Sequence_2">
-    <Sequence.Variables>
-      <Variable x:TypeArguments="x:String" Name="summary" />
-    </Sequence.Variables>
-    <sap:WorkflowViewStateService.ViewState>
-      <scg:Dictionary x:TypeArguments="x:String, x:Object">
-        <x:Boolean x:Key="IsExpanded">True</x:Boolean>
-      </scg:Dictionary>
-    </sap:WorkflowViewStateService.ViewState>
-    <ui:LogMessage DisplayName="Log - [ERP] Reading" sap2010:WorkflowViewState.IdRef="LogMessage_1" Level="Info" Message="[&quot;[ERP] Reading &quot; &amp; Convert.ToString(in_Config(&quot;LogisticsFile&quot;))]" />
-    <ui:ExcelApplicationScope SensitivityLabel="{x:Null}" AutoSave="False" CreateNewFile="False" DisplayName="Excel Application Scope - LogisticsRecords.xlsx" sap2010:WorkflowViewState.IdRef="ExcelApplicationScope_1" InstanceCachePeriod="3000" ReadOnly="True" SensitivityOperation="None" Visible="False" WorkbookPath="[Convert.ToString(in_Config(&quot;LogisticsFile&quot;))]">
-      <ui:ExcelApplicationScope.Body>
-        <ActivityAction x:TypeArguments="ui:WorkbookApplication">
-          <ActivityAction.Argument>
-            <DelegateInArgument x:TypeArguments="ui:WorkbookApplication" Name="ExcelWorkbookScope" />
-          </ActivityAction.Argument>
-          <Sequence DisplayName="Read ERP sheets" sap2010:WorkflowViewState.IdRef="Sequence_1">
-            <ui:ExcelReadRange AddHeaders="True" DataTable="[out_dtShipments]" DisplayName="Read Range - Shipments" sap2010:WorkflowViewState.IdRef="ExcelReadRange_1" SheetName="Shipments">
-              <ui:ExcelReadRange.Range>
-                <InArgument x:TypeArguments="x:String">
-                  <Literal x:TypeArguments="x:String" Value="" />
-                </InArgument>
-              </ui:ExcelReadRange.Range>
-            </ui:ExcelReadRange>
-            <ui:ExcelReadRange AddHeaders="True" DataTable="[out_dtErpEvents]" DisplayName="Read Range - ShipmentEvents" sap2010:WorkflowViewState.IdRef="ExcelReadRange_2" SheetName="ShipmentEvents">
-              <ui:ExcelReadRange.Range>
-                <InArgument x:TypeArguments="x:String">
-                  <Literal x:TypeArguments="x:String" Value="" />
-                </InArgument>
-              </ui:ExcelReadRange.Range>
-            </ui:ExcelReadRange>
-          </Sequence>
-        </ActivityAction>
-      </ui:ExcelApplicationScope.Body>
-    </ui:ExcelApplicationScope>
-    <ui:InvokeCode ContinueOnError="{x:Null}" Code="' ERP addresses are already lower-case, but normalise defensively - a hand-edited&#xA;' export is exactly the kind of thing that reintroduces mixed case.&#xA;For Each r As DataRow In in_dtEvents.Rows&#xA;    r(&quot;HandlerAddress&quot;) = Convert.ToString(r(&quot;HandlerAddress&quot;)).Trim().ToLowerInvariant()&#xA;Next&#xA;For Each r As DataRow In in_dtShipments.Rows&#xA;    r(&quot;ReceiverAddress&quot;) = Convert.ToString(r(&quot;ReceiverAddress&quot;)).Trim().ToLowerInvariant()&#xA;Next&#xA;&#xA;out_Summary = String.Format(&quot;{0} shipments, {1} expected milestones&quot;, _&#xA;    in_dtShipments.Rows.Count, in_dtEvents.Rows.Count)" DisplayName="Invoke Code - normalise ERP addresses" sap2010:WorkflowViewState.IdRef="InvokeCode_1">
-      <ui:InvokeCode.Arguments>
-        <InArgument x:TypeArguments="sd:DataTable" x:Key="in_dtShipments">[out_dtShipments]</InArgument>
-        <InArgument x:TypeArguments="sd:DataTable" x:Key="in_dtEvents">[out_dtErpEvents]</InArgument>
-        <OutArgument x:TypeArguments="x:String" x:Key="out_Summary">[summary]</OutArgument>
-      </ui:InvokeCode.Arguments>
-    </ui:InvokeCode>
-    <ui:LogMessage DisplayName="Log - [ERP]" sap2010:WorkflowViewState.IdRef="LogMessage_2" Level="Info" Message="[&quot;[ERP] &quot; &amp; summary]" />
-  </Sequence>
+  <Sequence DisplayName="02 - Extract logistics (ERP/WMS) records"><Sequence.Variables><Variable x:TypeArguments="x:String" Name="summary" /></Sequence.Variables><ui:LogMessage DisplayName="Log - [ERP] Reading" Level="Info" Message="[&quot;[ERP] Reading &quot; &amp; Convert.ToString(in_Config(&quot;LogisticsFile&quot;))]" /><ui:ExcelApplicationScope DisplayName="Excel Application Scope - LogisticsRecords.xlsx" AutoSave="False" Visible="False" CreateNewFile="False" ReadOnly="True" WorkbookPath="[Convert.ToString(in_Config(&quot;LogisticsFile&quot;))]"><ui:ExcelApplicationScope.Body><ActivityAction x:TypeArguments="ui:WorkbookApplication"><ActivityAction.Argument><DelegateInArgument x:TypeArguments="ui:WorkbookApplication" Name="ExcelWorkbookScope" /></ActivityAction.Argument><Sequence DisplayName="Read ERP sheets"><ui:ExcelReadRange DisplayName="Read Range - Shipments" AddHeaders="True" DataTable="[out_dtShipments]" Range="" SheetName="Shipments" /><ui:ExcelReadRange DisplayName="Read Range - ShipmentEvents" AddHeaders="True" DataTable="[out_dtErpEvents]" Range="" SheetName="ShipmentEvents" /></Sequence></ActivityAction></ui:ExcelApplicationScope.Body></ui:ExcelApplicationScope><ui:InvokeCode DisplayName="Invoke Code - normalise ERP addresses" Language="VBNet" Code="' ERP addresses are already lower-case, but normalise defensively - a hand-edited&#xA;' export is exactly the kind of thing that reintroduces mixed case.&#xA;For Each r As DataRow In in_dtEvents.Rows&#xA;    r(&quot;HandlerAddress&quot;) = Convert.ToString(r(&quot;HandlerAddress&quot;)).Trim().ToLowerInvariant()&#xA;Next&#xA;For Each r As DataRow In in_dtShipments.Rows&#xA;    r(&quot;ReceiverAddress&quot;) = Convert.ToString(r(&quot;ReceiverAddress&quot;)).Trim().ToLowerInvariant()&#xA;Next&#xA;&#xA;out_Summary = String.Format(&quot;{0} shipments, {1} expected milestones&quot;, _&#xA;    in_dtShipments.Rows.Count, in_dtEvents.Rows.Count)"><ui:InvokeCode.Arguments><scg:Dictionary x:TypeArguments="x:String, Argument"><InArgument x:TypeArguments="sd:DataTable" x:Key="in_dtShipments">[out_dtShipments]</InArgument><InArgument x:TypeArguments="sd:DataTable" x:Key="in_dtEvents">[out_dtErpEvents]</InArgument><OutArgument x:TypeArguments="x:String" x:Key="out_Summary">[summary]</OutArgument></scg:Dictionary></ui:InvokeCode.Arguments></ui:InvokeCode><ui:LogMessage DisplayName="Log - [ERP]" Level="Info" Message="[&quot;[ERP] &quot; &amp; summary]" /></Sequence>
 </Activity>
