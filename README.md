@@ -227,6 +227,12 @@ python tools\build_workflows.py               # the workflow .xaml files + entry
 python tools\build_tests.py                   # the test cases
 ```
 
+The final review deck is generated too. It needs Node.js:
+
+```bash
+cd tools\deck && npm install && node build_final_deck.js --date "15 November 2026"
+```
+
 The `.xaml` files are the deliverable and are edited in Studio like any others. The
 generators keep argument signatures consistent across files — **once you start editing a
 workflow by hand in Studio, remove it from that script's `GENERATORS` map**, or the next run

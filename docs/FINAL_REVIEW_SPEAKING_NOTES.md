@@ -15,8 +15,8 @@ drop slides 8 and 13 and shorten the future scope.
 
 | Slide | Lead | Why |
 |---|---|---|
-| 1 Cover · 3 The problem | **Nitin** | Sets up the thesis; no screen, so it opens on eye contact |
-| 2 Since Review 2 | **Either** | Whoever is steadier opening on a list |
+| 1 Cover · 2 The problem | **Nitin** | Sets up the thesis; no screen, so it opens on eye contact |
+| 3 Since Review 2 | **Either** | Whoever is steadier opening on a list |
 | 4 Architecture · 5 Mapping | **Adithya** | Extraction and the mapping engine are his |
 | 6 Rules · 7 Results · 8 Findings | **Adithya** | The validation engine he built |
 | 9 Config / Novelty 1 and 3 | **Adithya** | It is the rules engine responding to config |
@@ -42,7 +42,20 @@ Do not read the names and numbers off the slide. The examiner can see them.
 
 ---
 
-## 2 · Since Review 2 (75s)
+## 2 · The problem (60s) — Nitin, no computer
+
+> "A pharmaceutical shipment moves through six companies between Frankfurt and Chennai.
+> Each handoff is written to a blockchain, so the record is immutable. But immutable is not
+> the same as correct — a tampered quantity, a forged timestamp or an unauthorised wallet is
+> recorded just as permanently as a legitimate one. Today somebody cross-checks those records
+> against the ERP by hand. At thousands of transactions a day, nobody can."
+
+Land **immutable vs verified**. It is the point of the project and the thing most likely to
+be probed. Every anomaly the bot catches is a perfectly valid on-chain transaction.
+
+---
+
+## 3 · Since Review 2 (75s)
 
 This slide exists because the examiner saw Review 2 and will ask what changed. Six things.
 
@@ -53,26 +66,13 @@ Then go down the list, one clause each — do not explain them here, they each g
 slide or demo later:
 
 - **Field mapping engine** — "the readers got dumber and a spreadsheet got smarter"
-- **Ledger export support** — "a third feed, with genuinely different field names"
+- **Ledger noise handled** — "transfers and other contract calls are set aside, not mistaken for fraud"
 - **LOOKUP mode** — "a second way to link a transaction to a shipment"
 - **PDF audit report** — "the document you actually hand an auditor"
 - **Teams and Slack alerts** — "alerts where the operations team already is"
-- **Standalone Performer** — "queue mode now produces the same evidence as a batch run"
+- **Work queue in Studio** — "the run splits per shipment, and the Performer produces the same evidence as a batch run"
 
 > "And the list of things we have not executed got shorter — that is slide fifteen."
-
----
-
-## 3 · The problem (60s) — Nitin, no computer
-
-> "A pharmaceutical shipment moves through six companies between Frankfurt and Chennai.
-> Each handoff is written to a blockchain, so the record is immutable. But immutable is not
-> the same as correct — a tampered quantity, a forged timestamp or an unauthorised wallet is
-> recorded just as permanently as a legitimate one. Today somebody cross-checks those records
-> against the ERP by hand. At thousands of transactions a day, nobody can."
-
-Land **immutable vs verified**. It is the point of the project and the thing most likely to
-be probed. Every anomaly the bot catches is a perfectly valid on-chain transaction.
 
 ---
 
@@ -156,14 +156,14 @@ Severity is not decoration — it decides whether a finding goes to a human.
 
 ## 7 · Results (60s) — Adithya
 
-> "Forty-eight transactions across twelve shipments, in twenty-one seconds. Forty pass, one
-> warning, seven failures, one escalation."
+> "Forty-eight transactions across twelve shipments, in about twenty-four seconds. Forty pass,
+> one warning, seven failures, one escalation."
 
 Then the honest framing of the headline claim:
 
-> "Roughly twelve of those twenty-one seconds are Excel starting up. The validation engine
-> itself is about four seconds, which is around eight thousand transactions an hour on one
-> robot. Against a manual baseline of two to three minutes per transaction, that supports the
+> "The dashboard breaks those seconds down by phase: the validation engine itself is about
+> seven, and reading the Excel workbooks is most of the rest. End to end that is around seven
+> thousand transactions an hour on one robot. Against a manual baseline of two to three minutes per transaction, that supports the
 > ninety-percent reduction we claimed at Review 1 — and I'll say plainly that it is an
 > estimate against a stated baseline, not a timed comparison. We never actually stopwatched a
 > human."
@@ -208,7 +208,7 @@ The point to make here is the oracle:
 > whitelist are owned by logistics operations, not by developers. A spreadsheet plus a
 > scheduled robot puts the change where the domain knowledge already is."
 
-On the config panel: **seven sheets and sixty settings** — up from six and forty at Review 2.
+On the config panel: **seven sheets and fifty-eight settings** — up from six and forty at Review 2.
 
 > "The new sheet is FieldMapping_EvmEtl, and it is the one that makes a differently-shaped
 > ledger export work."

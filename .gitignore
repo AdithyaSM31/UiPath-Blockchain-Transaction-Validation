@@ -13,3 +13,6 @@ BlockchainLogisticsValidator/.project.json.bak
 *.nupkg
 __pycache__/
 *.pyc
+
+# Deck generator dependencies (npm install inside tools/deck)
+tools/deck/node_modules/
