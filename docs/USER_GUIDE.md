@@ -25,11 +25,44 @@ A default run (bundled data) always ends with `total=48 pass=40 warn=1 fail=7 es
 
 | Need | Why |
 |---|---|
-| UiPath Studio 25.10 (or a Robot of the same version) | Runs the Windows (.NET 8) project |
+| UiPath Studio 25.10 or 26.0 (or a Robot of the same version) | Runs the Windows (.NET 8) project. Verified on 25.10.15 and 26.0.204 |
 | Microsoft Excel | `Config.xlsx`, the ERP workbook and the mapping file are read with Excel activities |
 | Microsoft Access ODBC driver (installed with Office) | Only for `LogisticsSourceMode = SQL` against the bundled `LogisticsERP.accdb` |
 | Python 3 + `openpyxl`, `pycryptodome` | Only for the maintenance tools (data generator, oracle, rule-toggle check) |
 | Windows **Smart App Control off** on the machine that runs the bot | Smart App Control can block the compiled, unsigned workflow assemblies inside a UiPath package |
+
+### 2.1 Two things that bite on a fresh machine
+
+**Scripts must be allowed to run.** Windows clients default to an execution policy of
+`Restricted`, which refuses every `.ps1` in this repository with *"running scripts is disabled
+on this system"* — including `build.ps1` and the acceptance suite. Every command in these docs
+therefore passes the flag explicitly:
+
+```bash
+powershell -ExecutionPolicy Bypass -File "tools\run_all_checks.ps1"
+```
+
+That flag applies to one process and changes no machine setting. If you would rather not type
+it each time, `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` is the usual alternative —
+but that is a security setting, so make that choice deliberately.
+
+**UiPath moved where it installs itself.** Studio 25.10 and earlier put Studio and the Robot
+together in `%LOCALAPPDATA%\Programs\UiPath\Studio`. Studio 26.0 (the Connected installer)
+splits them into versioned folders:
+
+```
+%LOCALAPPDATA%\Programs\UiPathPlatform\Studio\<version>\
+%LOCALAPPDATA%\Programs\UiPathPlatform\Robot\<version>\
+```
+
+`tools\UiPathPaths.ps1` finds whichever layout is present, and every script here dot-sources
+it rather than hardcoding a path. It also works around the one behavioural difference: in the
+split layout `UiRobot pack` cannot find the Studio command-line application it delegates to, so
+`Invoke-UiPathPack` falls back to `UiPath.Studio.CommandLine.exe publish` into a local folder,
+which produces the same package.
+
+If a script reports *"UiRobot.exe not found"*, UiPath is installed somewhere neither layout
+covers — set `$UiPathRobotExe` before dot-sourcing, or extend the candidate list in that file.
 
 ---
 
@@ -40,13 +73,13 @@ A default run (bundled data) always ends with `total=48 pass=40 warn=1 fail=7 es
 **From a terminal** (packs and runs the same package Orchestrator would):
 
 ```bash
-powershell -File "build.ps1"
+powershell -ExecutionPolicy Bypass -File "build.ps1"
 ```
 
 Try a setting for one run without touching `Config.xlsx`:
 
 ```bash
-powershell -File "build.ps1" -Set @{ LogisticsSourceMode = "CSV" }
+powershell -ExecutionPolicy Bypass -File "build.ps1" -Set @{ LogisticsSourceMode = "CSV" }
 ```
 
 `-Set` writes `Data\Config.local.json`, which overrides any `Settings` value. That file is
@@ -236,7 +269,7 @@ on the robot machine (runbook §3.1).
 ## 6. Proving the audit trail
 
 ```bash
-powershell -File "build.ps1" -Entry "Workflows\12_Verify_AuditChain.xaml"
+powershell -ExecutionPolicy Bypass -File "build.ps1" -Entry "Workflows\12_Verify_AuditChain.xaml"
 ```
 
 It recomputes every entry's `RecordHash` and `EntryHash`, re-walks `PrevHash`, and reports
@@ -282,10 +315,10 @@ If a workflow is later maintained by hand in Studio, remove it from the generato
 `GENERATORS` map first, or the next regeneration overwrites the edit.
 
 **Sample data** is deterministic: `python tools\generate_sample_data.py`, then
-`powershell -File tools\build_erp_database.ps1` for the Access copy of the ERP data.
+`powershell -ExecutionPolicy Bypass -File tools\build_erp_database.ps1` for the Access copy of the ERP data.
 `python tools\verify_seeded_data.py` independently re-derives every expected finding.
 
-**Before any hand-in or demo:** `powershell -File tools\run_all_checks.ps1` (about 15 minutes).
+**Before any hand-in or demo:** `powershell -ExecutionPolicy Bypass -File tools\run_all_checks.ps1` (about 15 minutes).
 Every check and what it proves is listed at the top of that script; the deck-to-check mapping
 is in [DECK_TRACEABILITY.md](DECK_TRACEABILITY.md).
 

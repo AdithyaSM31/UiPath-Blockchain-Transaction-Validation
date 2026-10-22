@@ -26,7 +26,9 @@ param(
 )
 $ErrorActionPreference = "Stop"
 
-$Studio = Join-Path $env:LOCALAPPDATA "Programs\UiPath\Studio"
+. (Join-Path $PSScriptRoot "UiPathPaths.ps1")
+Assert-UiPathStudio
+$Studio = $UiPathStudioDir
 $RoslynDir = Join-Path $Studio "net472"
 $RefsDir = Join-Path $Studio "refs"
 $NuGet = Join-Path $env:USERPROFILE ".nuget\packages"

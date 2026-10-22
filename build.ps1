@@ -21,15 +21,16 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-$StudioDir   = Join-Path $env:LOCALAPPDATA "Programs\UiPath\Studio"
-$UiRobot     = Join-Path $StudioDir "UiRobot.exe"
-$StudioCli   = Join-Path $StudioDir "UiPath.Studio.CommandLine.exe"
+. (Join-Path $PSScriptRoot "tools\UiPathPaths.ps1")
+$StudioDir   = $UiPathStudioDir
+$UiRobot     = $UiPathRobotExe
+$StudioCli   = $UiPathStudioCli
 $ProjectDir  = Join-Path $PSScriptRoot "BlockchainLogisticsValidator"
 $ProjectJson = Join-Path $ProjectDir "project.json"
 $OutDir      = Join-Path $env:TEMP "blv-packages"
 $outputRoot  = Join-Path $ProjectDir "Data\Output"
 
-if (-not (Test-Path $UiRobot))     { throw "UiRobot.exe not found at $UiRobot" }
+Assert-UiPathRobot
 if (-not (Test-Path $ProjectJson)) { throw "project.json not found at $ProjectJson" }
 
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
@@ -75,7 +76,7 @@ Write-Host "  output root: $outputRoot" -ForegroundColor DarkGray
 # --- Pack ----------------------------------------------------------------
 Write-Host "`n=== Pack ===" -ForegroundColor Cyan
 Get-ChildItem $OutDir -Filter "*.nupkg" -ErrorAction SilentlyContinue | Remove-Item -Force
-$packOut = & $UiRobot pack $ProjectJson --output $OutDir 2>&1 | Out-String
+$packOut = Invoke-UiPathPack -ProjectJson $ProjectJson -OutputDir $OutDir
 if ($LASTEXITCODE -ne 0) { Write-Host $packOut -ForegroundColor Red; throw "Pack failed." }
 
 $pkg = Get-ChildItem $OutDir -Filter "*.nupkg" | Sort-Object LastWriteTime -Descending | Select-Object -First 1

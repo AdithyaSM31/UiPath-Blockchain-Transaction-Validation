@@ -29,11 +29,39 @@ The project was audited slide by slide against *RPA Project Review 1.pptx*
 | Workflow Analyzer | 0 Error-severity findings |
 | End-to-end batch run with the new configuration loading, extraction, field mapping, ERP canonicalisation, mapping join and validation engine | `total=48 pass=40 warn=1 fail=7 escalations=1` — identical to the original release |
 
-**Pending:** after that run, Windows Smart App Control on the laptop began blocking each
-newly compiled workflow assembly, so the remaining end-to-end checks — suite checks #4–#18
-and test cases TC01–TC11 — have not yet been executed against this release. Run
-`powershell -File tools\run_all_checks.ps1` on a machine without Smart App Control and
-record the outcome here.
+## 0.1 Re-verified on UiPath Studio 26.0.204 — 21 Oct 2026
+
+The checks listed above as pending have now been executed. The project was run against
+Studio and Robot **26.0.204** (the split `UiPathPlatform` install layout), not the 25.10.15
+it was built on.
+
+| Check | Result |
+|---|---|
+| `tools\compile_check.ps1` | 59/59 Invoke Code bodies compile |
+| Pack / publish — every workflow and all 11 test cases | passed |
+| Workflow Analyzer | 0 Error-severity findings |
+| Acceptance suite, first full run on 26.0.204 | **18/19** — only `UiPath test cases` failed |
+| `tools\run_tests.ps1` after the fixes below | **11/11 test cases passed** |
+
+Four defects were found by running these for the first time, and fixed:
+
+| Found by | Defect |
+|---|---|
+| suite #17 | A run that failed inside `00_Init_ReadConfig` wrote its failure screenshot to the robot's working directory — for a packed run, the extracted package under `%USERPROFILE%\.nuget\packages`. The only evidence a failed job left behind went into a disposable cache. `Main.xaml` now resolves the output root itself (`BLV_OUTPUT_ROOT` → `Config.local.json` → project default) without needing `00_Init` to have succeeded. |
+| TC10 | `06_HumanInTheLoop_Escalation` never assigned its own `out_EscalationCount` output argument, so every caller that bound it received 0. Invisible until now because the `escalations=` figure in the run summary comes from the validation engine's own tally. |
+| TC08 | Canonical `DateTime` columns were created with a `DataColumn`'s default `DateTimeMode` of `UnspecifiedLocal`, which strips `DateTimeKind.Utc` back to `Unspecified` on read. The transforms produce correct UTC values, but for a column named `EventTimestampUtc` anything comparing against `DateTime.UtcNow` or re-serialising would reinterpret it in the robot's local zone. Now `DataSetDateTime.Utc`. |
+| TC08 | *Test* bug: `Invoke Code` runs its body by reflection, so the exception reaching the catch is a `TargetInvocationException` whose own `Message` is generic. The assertion that an incomplete mapping sheet is "rejected by name" was reading the wrapper, not the inner message. Now `GetBaseException().Message`. |
+
+> **Not yet re-measured:** a full 19/19 suite run *after* the four fixes above. The run that
+> measured 18/19 predates them; since then `11/11` test cases and a clean pack have been
+> confirmed directly, but the complete suite has not been re-run end to end. Run
+> `powershell -ExecutionPolicy Bypass -File tools\run_all_checks.ps1` and record the number here.
+
+Two environment notes, both now handled in `tools\UiPathPaths.ps1` and documented in
+[USER_GUIDE.md §2.1](USER_GUIDE.md#21-two-things-that-bite-on-a-fresh-machine): Studio 26
+installs to `%LOCALAPPDATA%\Programs\UiPathPlatform\{Studio,Robot}\<version>\` rather than the
+legacy path every script used to hardcode, and a default Windows client refuses to run `.ps1`
+files at all without `-ExecutionPolicy Bypass`.
 
 The sections below are the measurements from the original release (11 Sep 2026) and remain
 the reference numbers.
@@ -42,7 +70,7 @@ the reference numbers.
 
 Measured on the development machine (Windows 11, UiPath Studio 25.10.15, Excel 16.0),
 running `MOCK` data source in `BATCH` mode. Every figure here is reproducible with
-`powershell -File tools\run_all_checks.ps1`.
+`powershell -ExecutionPolicy Bypass -File tools\run_all_checks.ps1`.
 
 ---
 

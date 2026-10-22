@@ -16,6 +16,8 @@ submission.
 | [docs/RESULTS.md](docs/RESULTS.md) | Measured results |
 | [docs/SEEDED_ANOMALIES.md](docs/SEEDED_ANOMALIES.md) | Which record breaks which rule |
 | [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md) | Review walkthrough |
+| [docs/FINAL_REVIEW_SPEAKING_NOTES.md](docs/FINAL_REVIEW_SPEAKING_NOTES.md) | What to say, slide by slide, for the final review deck |
+| [docs/REVIEW_DAY_CHECKLIST.md](docs/REVIEW_DAY_CHECKLIST.md) | Opening the project in Studio, and the mechanics of review day |
 
 ---
 
@@ -23,17 +25,23 @@ submission.
 
 Open `BlockchainLogisticsValidator\project.json` in UiPath Studio and run `Main.xaml`.
 That's it — the default configuration runs entirely offline against bundled sample data.
+Verified on Studio 25.10.15 and 26.0.204; on 26.x, decline the project-upgrade prompt unless
+you mean to re-pin every dependency.
+
+The `.ps1` commands below all pass `-ExecutionPolicy Bypass`, because a default Windows client
+refuses to run scripts at all — see
+[docs/USER_GUIDE.md §2.1](docs/USER_GUIDE.md#21-two-things-that-bite-on-a-fresh-machine).
 
 To run it headlessly instead (no Studio window):
 
 ```bash
-powershell -File "build.ps1"
+powershell -ExecutionPolicy Bypass -File "build.ps1"
 ```
 
 To verify every claim this project makes, end to end:
 
 ```bash
-powershell -File "tools\run_all_checks.ps1"
+powershell -ExecutionPolicy Bypass -File "tools\run_all_checks.ps1"
 ```
 
 That suite is the single source of truth for whether the project works: 19 checks,
@@ -41,7 +49,7 @@ including the eleven UiPath test cases. On a machine where Windows Smart App Con
 newly built workflow assemblies, run the checks that don't need the robot:
 
 ```bash
-powershell -File "tools\run_all_checks.ps1" -StaticOnly
+powershell -ExecutionPolicy Bypass -File "tools\run_all_checks.ps1" -StaticOnly
 ```
 
 ---
@@ -208,7 +216,7 @@ and the oracle ever disagree, one of them is wrong and the run is not signed off
 
 ```bash
 python tools\generate_sample_data.py          # sample data (deterministic)
-powershell -File tools\build_erp_database.ps1  # SQL copy of the ERP data
+powershell -ExecutionPolicy Bypass -File tools\build_erp_database.ps1  # SQL copy of the ERP data
 python tools\build_workflows.py               # the workflow .xaml files + entry points
 python tools\build_tests.py                   # the test cases
 ```

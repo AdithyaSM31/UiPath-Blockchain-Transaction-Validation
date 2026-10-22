@@ -27,8 +27,8 @@
         17. Failure handling      - a broken run is logged, screenshotted and re-thrown
         18. UiPath test cases     - every TC*.xaml under Tests\
 
-    Run:  powershell -File tools\run_all_checks.ps1
-          powershell -File tools\run_all_checks.ps1 -StaticOnly
+    Run:  powershell -ExecutionPolicy Bypass -File tools\run_all_checks.ps1
+          powershell -ExecutionPolicy Bypass -File tools\run_all_checks.ps1 -StaticOnly
 #>
 param([switch]$StaticOnly)
 $ErrorActionPreference = "Stop"

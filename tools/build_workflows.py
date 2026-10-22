@@ -497,7 +497,13 @@ End If
 
 Dim dt As New DataTable("ChainTransactions")
 For Each kv As KeyValuePair(Of String, Type) In canonical
-    dt.Columns.Add(kv.Key, kv.Value)
+    Dim col As DataColumn = dt.Columns.Add(kv.Key, kv.Value)
+    ' The transforms hand us DateTimeKind.Utc values, but a DataColumn's default
+    ' DateTimeMode is UnspecifiedLocal, which strips the Kind back to Unspecified on
+    ' the way out. For a column called EventTimestampUtc that is worse than cosmetic:
+    ' anything downstream that compares against DateTime.UtcNow, or re-serialises the
+    ' value, would silently reinterpret it in the robot's local zone.
+    If kv.Value Is GetType(DateTime) Then col.DateTimeMode = DataSetDateTime.Utc
 Next
 dt.Columns.Add("SourceMode", GetType(String))
 dt.Columns.Add("RawInput", GetType(String))
@@ -2322,7 +2328,13 @@ out_Summary = String.Format("{0} escalation(s) dispositioned as ""{1}"" via {2}"
                        + handle),
               sequence("Nothing to escalate",
                        log('"[ESCALATE] No human review required for this run."')),
-              name="If - anything to escalate"),
+              name="If - anything to escalate")
+        # The count lived only in a local until now, so every caller that bound this
+        # output argument silently received 0. The run summary quotes the validation
+        # engine's own tally, which is why the published numbers were right and this
+        # stayed invisible - but the argument still has to mean what it says.
+        + assign("out_EscalationCount", "escalationCount", type_ref="x:Int32",
+                 name="Assign - report how many items were escalated"),
         variables(("x:Int32", "escalationCount"), ("x:String", "summary"),
                   ("x:String", "mode"), ("x:String", "decision"),
                   ("x:String", "decidedBy"), ("x:String", "reviewOutcome"),
@@ -4824,15 +4836,52 @@ def finalise_run() -> str:
 # ==========================================================================
 # Main
 # ==========================================================================
-FAILURE_SCREENSHOT_PATH_CODE = r"""
+FAILURE_SCREENSHOT_PATH_CODE = r'''
 ' Where to put the failure screenshot. Configuration may not have loaded - the failure
-' might BE the configuration - so fall back to the project's default output folder.
+' might BE the configuration, as it is when Config.xlsx or a chain feed is missing - so
+' this cannot rely on in_Config being populated.
+'
+' Falling straight back to the current directory is wrong for a packed run: the robot's
+' working directory is then the extracted package under %USERPROFILE%\.nuget\packages,
+' so the one piece of evidence a failed job leaves behind would be written into a
+' disposable cache folder and lost on the next publish. So resolve the output root the
+' same way 00_Init does, with the same precedence, without needing 00_Init to have run:
+' BLV_OUTPUT_ROOT, then Data\Config.local.json, then the project default.
 Dim folder As String = ""
 If in_Config IsNot Nothing AndAlso in_Config.ContainsKey("ScreenshotFolder") Then folder = Convert.ToString(in_Config("ScreenshotFolder"))
-If folder = "" Then folder = Path.Combine(Directory.GetCurrentDirectory(), "Data", "Output", "Screenshots")
+
+If folder = "" Then
+    Dim outRoot As String = Environment.GetEnvironmentVariable("BLV_OUTPUT_ROOT")
+
+    If String.IsNullOrWhiteSpace(outRoot) Then
+        ' Read OutputRoot out of the local override file without a JSON dependency:
+        ' this code runs in the failure handler, where the fewer moving parts the better.
+        Dim localCfg As String = Path.Combine(Directory.GetCurrentDirectory(), "Data", "Config.local.json")
+        If File.Exists(localCfg) Then
+            ' ChrW(34) rather than an escaped quote literal: this body is stored inside a
+            ' XAML attribute, and nested quote escaping is unreadable there and in Studio.
+            Dim dq As Char = ChrW(34)
+            Dim txt As String = File.ReadAllText(localCfg)
+            Dim k As Integer = txt.IndexOf(dq & "OutputRoot" & dq)
+            If k >= 0 Then
+                Dim c As Integer = txt.IndexOf(":"c, k)
+                Dim q1 As Integer = -1
+                If c >= 0 Then q1 = txt.IndexOf(dq, c + 1)
+                Dim q2 As Integer = -1
+                If q1 >= 0 Then q2 = txt.IndexOf(dq, q1 + 1)
+                If q2 > q1 Then outRoot = txt.Substring(q1 + 1, q2 - q1 - 1).Replace("\\", "\")
+            End If
+        End If
+    End If
+
+    If String.IsNullOrWhiteSpace(outRoot) Then outRoot = Path.Combine(Directory.GetCurrentDirectory(), "Data", "Output")
+    If Not Path.IsPathRooted(outRoot) Then outRoot = Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), outRoot))
+    folder = Path.Combine(outRoot, "Screenshots")
+End If
+
 Directory.CreateDirectory(folder)
 out_Path = Path.Combine(folder, "Failure_" & DateTime.UtcNow.ToString("yyyyMMdd'T'HHmmss'Z'", CultureInfo.InvariantCulture) & ".png")
-""".strip()
+'''.strip()
 
 
 def main_workflow() -> str:

@@ -144,8 +144,8 @@ execute fresh builds here. The remaining end-to-end checks (suite #4–#18, TC01
 be run on a machine without Smart App Control:
 
 ```bash
-powershell -File "tools\run_all_checks.ps1"
+powershell -ExecutionPolicy Bypass -File "tools\run_all_checks.ps1"
 ```
 
-If you'd rather keep Smart App Control on, `powershell -File tools\run_all_checks.ps1 -StaticOnly`
+If you'd rather keep Smart App Control on, `powershell -ExecutionPolicy Bypass -File tools\run_all_checks.ps1 -StaticOnly`
 runs the three static checks.

@@ -517,7 +517,11 @@ out_Mapping = m
             sequence("Map with an incomplete sheet",
                      map_feed("ethRecords", "dtBroken", "dtChain", "incomplete")
                      + assign("mappingError", '"no error raised"')),
-            assign("mappingError", "exception.Message"),
+            # Invoke Code runs the body by reflection, so whatever it throws arrives
+            # here wrapped in a TargetInvocationException whose own Message is the
+            # generic "Exception has been thrown by the target of an invocation."
+            # The message naming the unmapped field is on the innermost exception.
+            assign("mappingError", "exception.GetBaseException().Message"),
             name="Try Catch - incomplete mapping must be rejected")
         + verify('mappingError.Contains("ShipmentID")', "a mapping sheet missing a required field is rejected by name"))
 
