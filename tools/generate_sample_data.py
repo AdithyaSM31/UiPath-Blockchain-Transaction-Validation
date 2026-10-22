@@ -3,12 +3,18 @@ generate_sample_data.py
 =======================
 Generates every input artefact the BlockchainLogisticsValidator bot consumes:
 
-    Data/Config.xlsx                              the no-code control panel (6 sheets)
+    Data/Config.xlsx                              the no-code control panel (7 sheets)
     Data/Input/LogisticsRecords.xlsx              ERP/WMS master + event lines
+    Data/Input/ERP_CSV/Shipments.csv              the same ERP data as CSV (LogisticsSourceMode = CSV)
+    Data/Input/ERP_CSV/ShipmentEvents.csv
     Data/Input/TxShipmentMap.xlsx                 TxHash -> ShipmentID lookup (LOOKUP mode)
     Data/Input/MockChain/etherscan_txlist_response.json
     Data/Input/MockChain/etherscan_txlist_polygon.json
+    Data/Input/MockChain/evm_etl_besu_export.json a differently-shaped feed (FieldMapping_EvmEtl)
     docs/SEEDED_ANOMALIES.md                      traceability: which row breaks which rule
+
+The SQL flavour of the ERP data (Data/Input/LogisticsERP.accdb) is built from the CSV
+exports by tools/build_erp_database.ps1, because Python cannot write an Access file.
 
 Design notes
 ------------
@@ -25,6 +31,7 @@ Run:  python tools/generate_sample_data.py
 
 from __future__ import annotations
 
+import csv
 import json
 import os
 from datetime import datetime, timedelta, timezone
@@ -42,9 +49,10 @@ PROJ = os.path.join(ROOT, "BlockchainLogisticsValidator")
 DATA = os.path.join(PROJ, "Data")
 INPUT = os.path.join(DATA, "Input")
 MOCK = os.path.join(INPUT, "MockChain")
+ERP_CSV = os.path.join(INPUT, "ERP_CSV")
 DOCS = os.path.join(ROOT, "docs")
 
-for d in (DATA, INPUT, MOCK, DOCS):
+for d in (DATA, INPUT, MOCK, ERP_CSV, DOCS):
     os.makedirs(d, exist_ok=True)
 
 
@@ -301,6 +309,39 @@ def to_etherscan_json(txs, chain_label="ethereum"):
     return {"status": "1", "message": "OK", "result": result}
 
 
+def to_evm_etl_json(txs, chain_label="besu-private"):
+    """
+    The same transactions in the column layout of the open-source ethereum-etl exporter
+    (the schema behind BigQuery's public crypto_* datasets), as a Hyperledger Besu
+    private network would be exported. Every field name differs from Etherscan's, the
+    timestamp is a UTC datetime string rather than epoch seconds, and success is a
+    receipt status of 1 rather than an isError flag of 0 - so the bot can only read it
+    through a different FieldMapping sheet. That is the point: Novelty 3 is proven by a
+    config change, not by a second feed that happens to share Etherscan's shape.
+    """
+    rows = []
+    for t in txs:
+        block = GENESIS_BLOCK + (t["epoch"] - int(BASE_TIME.timestamp())) // 12
+        rows.append({
+            "hash": t["hash"],
+            "nonce": t["nonce"],
+            "transaction_index": t["nonce"] % 120,
+            "from_address": t["from"].lower(),
+            "to_address": CONTRACT.lower(),
+            "value": "0",
+            "gas": 220000,
+            "gas_price": 0,
+            "input": t["input"],
+            "block_timestamp": datetime.fromtimestamp(t["epoch"], tz=timezone.utc)
+                                       .strftime("%Y-%m-%d %H:%M:%S UTC"),
+            "block_number": block,
+            "block_hash": "0x" + keccak256(f"block{block}{chain_label}".encode()).hex(),
+            "receipt_status": 1,
+        })
+    return {"network": "hyperledger-besu-private", "exporter": "ethereum-etl 2.x",
+            "chain_id": 1337, "transactions": rows}
+
+
 # --------------------------------------------------------------------------
 # Excel helpers
 # --------------------------------------------------------------------------
@@ -337,7 +378,7 @@ def write_config(path):
     ws = wb.active
     ws.title = "Settings"
     settings = [
-        ("ProjectName",                 "BlockchainLogisticsValidator", "Shown in reports and the audit log."),
+        ("ProjectName",                 "BlockchainLogisticsValidator", "Shown in the Excel, PDF, e-mail and dashboard headers."),
         ("BotIdentity",                 "BLV-BOT-01",                   "Recorded in every audit entry."),
         ("DataSourceMode",              "MOCK",                         "MOCK | API | WEB - selects the blockchain extraction path."),
         ("MockChainFile",               r"Data\Input\MockChain\etherscan_txlist_response.json", "Used when DataSourceMode = MOCK."),
@@ -345,32 +386,59 @@ def write_config(path):
         ("EtherscanApiKey",             "",                             "Free key from etherscan.io/myapikey. Blank keeps API mode disabled."),
         ("ChainId",                     1,                              "1 Ethereum, 137 Polygon, 56 BSC. Change this alone to switch chain."),
         ("ContractAddress",             CONTRACT,                       "Logistics registry contract whose transactions are audited."),
-        ("ExplorerAddressUrl",          "https://etherscan.io/address/{0}", "Used when DataSourceMode = WEB."),
-        ("MaxTransactions",             500,                            "Upper bound per run."),
-        ("LogisticsFile",               r"Data\Input\LogisticsRecords.xlsx", "ERP / WMS export."),
-        ("ShipmentsSheet",              "Shipments",                    "Shipment master sheet name."),
-        ("ShipmentEventsSheet",         "ShipmentEvents",               "Expected milestone lines."),
+        ("ExplorerAddressUrl",          "https://etherscan.io/address/{0}", "WEB mode: used when ExplorerPageUrl is blank; {0} becomes ContractAddress."),
+        ("MaxTransactions",             500,                            "Upper bound per run (API mode)."),
+        ("LogisticsFile",               r"Data\Input\LogisticsRecords.xlsx", "ERP / WMS export. Used when LogisticsSourceMode = EXCEL."),
+        ("ShipmentsSheet",              "Shipments",                    "Shipment master sheet name (EXCEL mode)."),
+        ("ShipmentEventsSheet",         "ShipmentEvents",               "Expected milestone lines sheet name (EXCEL mode)."),
         ("TxShipmentMapFile",           r"Data\Input\TxShipmentMap.xlsx", "Used when MappingMode = LOOKUP."),
-        ("MappingMode",                 "DECODE",                       "DECODE reads the ABI input data; LOOKUP uses the mapping file."),
-        ("TimestampToleranceHours",     2,                              "R1: drift up to this is a PASS."),
-        ("TimestampWarnToleranceHours", 4,                              "R1: drift past this is a FAIL; between the two is a WARNING."),
-        ("QuantityTolerance",           0,                              "R2: permitted absolute difference in units."),
-        ("EscalationEnabled",           "True",                         "Novelty 2: show the review form on a CRITICAL anomaly."),
-        ("EscalationSeverity",          "CRITICAL",                     "Minimum severity that pauses the bot for a human."),
+        ("MappingMode",                 "DECODE",                       "DECODE takes ShipmentID/PO from the ABI input data; LOOKUP takes them from TxShipmentMapFile by TxHash."),
+        ("TimestampToleranceHours",     2,                              "R1 fallback: used only when ValidationRules R1 Param1 is blank."),
+        ("TimestampWarnToleranceHours", 4,                              "R1 fallback: used only when ValidationRules R1 Param2 is blank."),
+        ("QuantityTolerance",           0,                              "R2 fallback: used only when ValidationRules R2 Param1 is blank."),
+        ("EscalationEnabled",           "True",                         "Novelty 2: pause for a human reviewer on a high-severity anomaly."),
+        ("EscalationSeverity",          "CRITICAL",                     "A FAIL at or above this severity escalates, as does any rule whose FailAction is ESCALATE. Blank = FailAction only."),
         ("AttendedMode",                "True",                         "False in unattended runs: log and continue instead of blocking."),
-        ("AlertMode",                   "EML",                          "EML writes the message to disk; SMTP and OUTLOOK actually send."),
-        ("AlertFrom",                   "rpa.bot@logistics-demo.local", ""),
+        ("AlertMode",                   "EML",                          "EML writes the message to disk; SMTP sends via SmtpHost; OUTLOOK sends via the desktop Outlook profile."),
+        ("AlertFrom",                   "rpa.bot@logistics-demo.local", "Sender address (EML and SMTP)."),
         ("AlertTo",                     "logistics.manager@logistics-demo.local;compliance@logistics-demo.local", "Semicolon separated."),
         ("SmtpHost",                    "smtp.gmail.com",               "Only used when AlertMode = SMTP."),
-        ("SmtpPort",                    587,                            ""),
-        ("SmtpUseSsl",                  "True",                         ""),
-        ("SmtpUser",                    "",                             "Leave blank unless AlertMode = SMTP."),
-        ("SmtpPassword",                "",                             "App password. Never commit a real value."),
-        ("ReportsFolder",               r"Data\Output\Reports",         ""),
-        ("AuditLogFolder",              r"Data\Output\AuditLogs",       ""),
+        ("SmtpPort",                    587,                            "587 with SmtpUseSsl = True negotiates STARTTLS; 465 uses SSL on connect."),
+        ("SmtpUseSsl",                  "True",                         "False connects without TLS (only for an internal relay)."),
+        ("SmtpUser",                    "",                             "Leave blank for an unauthenticated relay."),
+        ("SmtpPassword",                "",                             "App password. Never commit a real value - use Config.local.json."),
+        ("ReportsFolder",               r"Data\Output\Reports",         "Relative paths are resolved under the output root (BLV_OUTPUT_ROOT / Config.local.json)."),
+        ("AuditLogFolder",              r"Data\Output\AuditLogs",       "Relative paths are resolved under the output root."),
         ("AuditLogFile",                "ValidationAuditLog.csv",       "Append-only, hash-chained."),
-        ("ScreenshotFolder",            r"Data\Output\Screenshots",     ""),
-        ("LogLevel",                    "Info",                         "Info | Trace."),
+        ("ScreenshotFolder",            r"Data\Output\Screenshots",     "Failure screenshots and reviewer-window evidence. Resolved under the output root."),
+        ("LogLevel",                    "Info",                         "Info | Trace. Trace also logs every transaction's verdict."),
+        ("EscalationMode",              "SIMULATE",                     "PROMPT shows the reviewer window (attended only); SIMULATE applies the decision below; AUTO_LOG defers."),
+        ("SimulatedEscalationDecision", "REJECTED - hold the shipment and open an investigation", "Used when EscalationMode = SIMULATE, so rehearsals produce the same artefacts as a real review."),
+        ("QueueMode",                   "DRYRUN",                       "ORCHESTRATOR pushes real queue items; DRYRUN writes the payloads to disk for inspection."),
+        ("QueueName",                   "BlockchainValidationQueue",    "Orchestrator queue used by Dispatcher and Performer."),
+        ("RunMode",                     "BATCH",                        "BATCH validates the whole run in one job; DISPATCH splits it into one Orchestrator queue item per shipment."),
+        ("ExplorerPageUrl",             r"Data\Input\MockChain\explorer_ethereum.html", "Used when DataSourceMode = WEB. A local replica by default; point at a live explorer URL to scrape the real thing."),
+        # ---- Added to close the remaining gaps against the Review 1 deck ------
+        ("ChainRecordsPath",            "result",                       "JSON path of the transaction array in a MOCK/API response. 'result' for Etherscan."),
+        ("FieldMappingSheet",           "FieldMapping",                 "Which mapping sheet translates the feed's fields. FieldMapping = Etherscan; FieldMapping_EvmEtl = ethereum-etl export."),
+        ("LogisticsSourceMode",         "EXCEL",                        "EXCEL | CSV | SQL - where the ERP/WMS records are read from."),
+        ("ShipmentsCsvFile",            r"Data\Input\ERP_CSV\Shipments.csv", "Used when LogisticsSourceMode = CSV."),
+        ("ShipmentEventsCsvFile",       r"Data\Input\ERP_CSV\ShipmentEvents.csv", "Used when LogisticsSourceMode = CSV."),
+        ("DbProviderName",              "System.Data.Odbc",             "SQL mode: ADO.NET provider for Database Connect (System.Data.Odbc, System.Data.SqlClient, ...)."),
+        ("DbConnectionString",          r"Driver={Microsoft Access Driver (*.mdb, *.accdb)};Dbq={ProjectRoot}\Data\Input\LogisticsERP.accdb;", "SQL mode. {ProjectRoot} is replaced at run time. Put real credentials in Config.local.json."),
+        ("DbShipmentsQuery",            "SELECT * FROM Shipments ORDER BY ShipmentID", "SQL mode: must return the Shipments columns."),
+        ("DbShipmentEventsQuery",       "SELECT * FROM ShipmentEvents ORDER BY ShipmentID, ExpectedEventTimestampUtc", "SQL mode: must return the ShipmentEvents columns."),
+        ("ReviewUi",                    "WINDOW",                       "PROMPT mode: WINDOW shows the full review form; DIALOG falls back to a simple Input Dialog."),
+        ("ReviewTimeoutMinutes",        30,                             "An unanswered review window closes after this long and the item is recorded as DEFERRED."),
+        ("AlertAttachReports",          "True",                         "Attach the Excel and PDF reports to SMTP / Outlook alerts."),
+        ("OutlookAccount",              "",                             "OUTLOOK mode: send from this account. Blank = the default profile."),
+        ("OutlookSaveAsDraft",          "False",                        "OUTLOOK mode: True saves the alert as a draft instead of sending it."),
+        ("TeamsWebhookUrl",             "",                             "Teams Workflows webhook. Blank writes the Adaptive Card payload to Reports instead of posting."),
+        ("SlackWebhookUrl",             "",                             "Slack incoming webhook. Blank writes the payload to Reports instead of posting."),
+        ("DashboardPushUrl",            "",                             "Optional: Power BI streaming-dataset push URL or a Google Apps Script web app. Blank = no push."),
+        ("DashboardPushFormat",         "POWERBI",                      "POWERBI posts one flat KPI row; JSON posts the full dashboard_summary.json document."),
+        ("RunHistoryFile",              "RunHistory.csv",               "Per-run KPIs and processing time, kept beside the audit log for trend charts."),
+        ("QueueDryRunFile",             "",                             "Performer in DRYRUN mode: payload file to process. Blank = the newest file in Reports\\QueueDryRun."),
     ]
     write_sheet(ws, ["Name", "Value", "Notes"],
                 [[n, v, d] for n, v, d in settings], widths=[30, 62, 74])
@@ -401,9 +469,14 @@ def write_config(path):
                 wallets, widths=[46, 34, 20, 10])
 
     # ---- FieldMapping ----------------------------------------------------
+    # Applied by 01d_Apply_FieldMapping to every extracted record. `field:argN` reads
+    # ABI argument N out of that field's call data; `field:selector` takes its 4-byte
+    # function selector. Supported TransformType values are listed in the Notes of the
+    # first sheet and documented in docs/USER_GUIDE.md.
+    header = ["BlockchainField", "LogisticsField", "TransformType", "Notes"]
     ws = wb.create_sheet("FieldMapping")
     mapping = [
-        ["hash",              "TxHash",            "LOWERCASE",         "Transaction identity."],
+        ["hash",              "TxHash",            "LOWERCASE",         "Transaction identity. Transforms: NONE, LOWERCASE, UPPERCASE, INTEGER, HEX_TO_INTEGER, DECIMAL, EPOCH_TO_DATETIME, ISO_TO_DATETIME, BOOLEAN, BOOLEAN_INVERT, ABI_STRING, ABI_UINT256, ABI_ADDRESS."],
         ["blockNumber",       "BlockNumber",       "INTEGER",           ""],
         ["timeStamp",         "EventTimestampUtc", "EPOCH_TO_DATETIME", "Unix seconds to DateTime."],
         ["from",              "SenderAddress",     "LOWERCASE",         "Reconciles checksummed and non-checksummed forms."],
@@ -412,10 +485,30 @@ def write_config(path):
         ["input:arg0",        "ShipmentID",        "ABI_STRING",        "First ABI argument."],
         ["input:arg1",        "OnChainQty",        "ABI_UINT256",       "Second ABI argument."],
         ["input:arg2",        "PONumber",          "ABI_STRING",        "Third ABI argument."],
-        ["isError",           "TxFailed",          "BOOLEAN_INVERT",    "Etherscan reports 0 for success."],
+        ["isError",           "TxFailed",          "BOOLEAN",           "Etherscan reports 1 for a reverted transaction, 0 for success."],
+        ["input",             "RawInput",          "LOWERCASE",         "Raw call data - hashed into the audit log as InputDataHash."],
     ]
-    write_sheet(ws, ["BlockchainField", "LogisticsField", "TransformType", "Notes"],
-                mapping, widths=[22, 22, 22, 62])
+    write_sheet(ws, header, mapping, widths=[22, 22, 22, 62])
+
+    # ---- FieldMapping_EvmEtl ---------------------------------------------
+    # The same canonical fields out of an ethereum-etl export (e.g. a Hyperledger Besu
+    # private network). Selecting this sheet via FieldMappingSheet is the only change
+    # needed to validate that feed.
+    ws = wb.create_sheet("FieldMapping_EvmEtl")
+    mapping_etl = [
+        ["hash",              "TxHash",            "LOWERCASE",         "ethereum-etl column names."],
+        ["block_number",      "BlockNumber",       "INTEGER",           ""],
+        ["block_timestamp",   "EventTimestampUtc", "ISO_TO_DATETIME",   "'yyyy-MM-dd HH:mm:ss UTC' rather than epoch seconds."],
+        ["from_address",      "SenderAddress",     "LOWERCASE",         ""],
+        ["to_address",        "ContractAddress",   "LOWERCASE",         ""],
+        ["input:selector",    "EventSelector",     "LOWERCASE",         "The export has no methodId column - take the selector from the call data."],
+        ["input:arg0",        "ShipmentID",        "ABI_STRING",        ""],
+        ["input:arg1",        "OnChainQty",        "ABI_UINT256",       ""],
+        ["input:arg2",        "PONumber",          "ABI_STRING",        ""],
+        ["receipt_status",    "TxFailed",          "BOOLEAN_INVERT",    "Receipt status 1 means success, so it is inverted into TxFailed."],
+        ["input",             "RawInput",          "LOWERCASE",         ""],
+    ]
+    write_sheet(ws, header, mapping_etl, widths=[22, 22, 22, 62])
 
     # ---- EventSequence ---------------------------------------------------
     ws = wb.create_sheet("EventSequence")
@@ -452,6 +545,12 @@ def main():
     with open(poly, "w", encoding="utf-8") as f:
         json.dump(to_etherscan_json(txs, "polygon"), f, indent=2)
 
+    # A third feed with a different schema entirely - readable only through the
+    # FieldMapping_EvmEtl sheet.
+    etl = os.path.join(MOCK, "evm_etl_besu_export.json")
+    with open(etl, "w", encoding="utf-8") as f:
+        json.dump(to_evm_etl_json(txs), f, indent=2)
+
     # ---- LogisticsRecords.xlsx ------------------------------------------
     wb = Workbook()
     ws = wb.active
@@ -484,6 +583,31 @@ def main():
                 widths=[13, 16, 26, 32, 46, 13, 13])
     logistics = os.path.join(INPUT, "LogisticsRecords.xlsx")
     wb.save(logistics)
+
+    # ---- ERP_CSV/*.csv ---------------------------------------------------
+    # The same two tables as flat files, for LogisticsSourceMode = CSV, and as the
+    # source tools/build_erp_database.ps1 loads into the SQL (Access) database.
+    def write_csv(path, headers, rows):
+        with open(path, "w", encoding="utf-8", newline="") as f:
+            w = csv.writer(f)
+            w.writerow(headers)
+            for r in rows:
+                w.writerow([v.strftime("%Y-%m-%d %H:%M:%S") if isinstance(v, datetime) else v
+                            for v in r])
+
+    ship_csv = os.path.join(ERP_CSV, "Shipments.csv")
+    write_csv(ship_csv,
+              ["ShipmentID", "PONumber", "Product", "ExpectedQty", "UoM", "Origin",
+               "Destination", "SupplierName", "ReceiverAddress", "DispatchTimestampUtc",
+               "ExpectedDeliveryUtc", "Carrier", "TempRange", "Status"],
+              ship_rows)
+    events_csv = os.path.join(ERP_CSV, "ShipmentEvents.csv")
+    write_csv(events_csv,
+              ["ShipmentID", "EventName", "ExpectedEventTimestampUtc", "HandlerPartner",
+               "HandlerAddress", "ExpectedQty", "RecordedBy"],
+              [[e["ShipmentID"], e["EventName"], e["ExpectedEventTimestampUtc"],
+                e["HandlerPartner"], e["HandlerAddress"], e["ExpectedQty"], e["RecordedBy"]]
+               for e in erp_events])
 
     # ---- TxShipmentMap.xlsx ---------------------------------------------
     wb = Workbook()
@@ -570,7 +694,7 @@ def main():
     print(f"shipments              : {len(SHIPMENTS)}")
     print(f"contract               : {CONTRACT}")
     print(f"rogue wallet (R3)      : {ROGUE_ADDR}")
-    for p in (eth, poly, logistics, txmap, config, anomaly_doc):
+    for p in (eth, poly, etl, logistics, ship_csv, events_csv, txmap, config, anomaly_doc):
         print("wrote:", os.path.relpath(p, ROOT))
 
 

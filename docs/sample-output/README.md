@@ -12,3 +12,9 @@ running it. Everything here is regenerated on every execution into
 The run these came from: **48 transactions, 12 shipments — 40 passed, 1 warning, 7 failed,
 1 escalated to a human.** Those seven failures are the seeded anomalies documented in
 [../SEEDED_ANOMALIES.md](../SEEDED_ANOMALIES.md), one per validation rule.
+
+These samples come from the original release (11 Sep 2026). A run of the current release
+also writes `AuditReport_<run>.pdf`, the Teams/Slack payloads and `RunHistory.csv`, and its
+dashboard adds processing time by phase and trends across runs — see
+[../USER_GUIDE.md §3](../USER_GUIDE.md#3-running-it). Refresh this folder from a run once the
+acceptance suite has been run on a machine without Smart App Control.

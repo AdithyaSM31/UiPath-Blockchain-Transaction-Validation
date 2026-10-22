@@ -1,0 +1,86 @@
+<Activity mc:Ignorable="sap sap2010" x:Class="_09b_Alert_Webhooks" mva:VisualBasic.Settings="{x:Null}"
+ xmlns="http://schemas.microsoft.com/netfx/2009/xaml/activities"
+ xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+ xmlns:mva="clr-namespace:Microsoft.VisualBasic.Activities;assembly=System.Activities"
+ xmlns:njl="clr-namespace:Newtonsoft.Json.Linq;assembly=Newtonsoft.Json"
+ xmlns:s="clr-namespace:System;assembly=System.Private.CoreLib"
+ xmlns:sap="http://schemas.microsoft.com/netfx/2009/xaml/activities/presentation"
+ xmlns:sap2010="http://schemas.microsoft.com/netfx/2010/xaml/activities/presentation"
+ xmlns:scg="clr-namespace:System.Collections.Generic;assembly=System.Private.CoreLib"
+ xmlns:sco="clr-namespace:System.Collections.ObjectModel;assembly=mscorlib"
+ xmlns:sd="clr-namespace:System.Data;assembly=System.Data.Common"
+ xmlns:ui="http://schemas.uipath.com/workflow/activities"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <x:Members>
+    <x:Property Name="in_Config" Type="InArgument(scg:Dictionary(x:String, x:Object))" />
+    <x:Property Name="in_dtExceptions" Type="InArgument(sd:DataTable)" />
+    <x:Property Name="in_Stats" Type="InArgument(scg:Dictionary(x:String, x:Object))" />
+    <x:Property Name="in_ShouldSend" Type="InArgument(x:Boolean)" />
+  </x:Members>
+
+  <TextExpression.NamespacesForImplementation>
+    <sco:Collection x:TypeArguments="x:String">
+      <x:String>System.Activities</x:String>
+      <x:String>System.Activities.Statements</x:String>
+      <x:String>System.Activities.Expressions</x:String>
+      <x:String>System.Activities.Validation</x:String>
+      <x:String>System.Activities.XamlIntegration</x:String>
+      <x:String>Microsoft.VisualBasic</x:String>
+      <x:String>Microsoft.VisualBasic.Activities</x:String>
+      <x:String>System</x:String>
+      <x:String>System.Collections</x:String>
+      <x:String>System.Collections.Generic</x:String>
+      <x:String>System.Collections.ObjectModel</x:String>
+      <x:String>System.Data</x:String>
+      <x:String>System.Diagnostics</x:String>
+      <x:String>System.Drawing</x:String>
+      <x:String>System.Globalization</x:String>
+      <x:String>System.IO</x:String>
+      <x:String>System.Linq</x:String>
+      <x:String>System.Net.Mail</x:String>
+      <x:String>System.Security.Cryptography</x:String>
+      <x:String>System.Text</x:String>
+      <x:String>System.Xml</x:String>
+      <x:String>System.Xml.Linq</x:String>
+      <x:String>Newtonsoft.Json</x:String>
+      <x:String>Newtonsoft.Json.Linq</x:String>
+      <x:String>UiPath.Core</x:String>
+      <x:String>UiPath.Core.Activities</x:String>
+      <x:String>System.Windows.Markup</x:String>
+    </sco:Collection>
+  </TextExpression.NamespacesForImplementation>
+  <TextExpression.ReferencesForImplementation>
+    <sco:Collection x:TypeArguments="AssemblyReference">
+      <AssemblyReference>System.Activities</AssemblyReference>
+      <AssemblyReference>Microsoft.VisualBasic</AssemblyReference>
+      <AssemblyReference>System.Private.CoreLib</AssemblyReference>
+      <AssemblyReference>mscorlib</AssemblyReference>
+      <AssemblyReference>System.Data</AssemblyReference>
+      <AssemblyReference>System</AssemblyReference>
+      <AssemblyReference>System.Linq</AssemblyReference>
+      <AssemblyReference>System.Data.Common</AssemblyReference>
+      <AssemblyReference>System.Drawing</AssemblyReference>
+      <AssemblyReference>System.Drawing.Primitives</AssemblyReference>
+      <AssemblyReference>System.Drawing.Common</AssemblyReference>
+      <AssemblyReference>System.Core</AssemblyReference>
+      <AssemblyReference>System.Runtime</AssemblyReference>
+      <AssemblyReference>System.Security.Cryptography</AssemblyReference>
+      <AssemblyReference>System.Xml</AssemblyReference>
+      <AssemblyReference>System.Xml.Linq</AssemblyReference>
+      <AssemblyReference>PresentationFramework</AssemblyReference>
+      <AssemblyReference>WindowsBase</AssemblyReference>
+      <AssemblyReference>PresentationCore</AssemblyReference>
+      <AssemblyReference>System.Xaml</AssemblyReference>
+      <AssemblyReference>Newtonsoft.Json</AssemblyReference>
+      <AssemblyReference>UiPath.System.Activities</AssemblyReference>
+      <AssemblyReference>UiPath.UiAutomation.Activities</AssemblyReference>
+      <AssemblyReference>UiPath.Excel.Activities</AssemblyReference>
+      <AssemblyReference>UiPath.Excel</AssemblyReference>
+      <AssemblyReference>UiPath.Mail.Activities</AssemblyReference>
+      <AssemblyReference>UiPath.Web.Activities</AssemblyReference>
+      <AssemblyReference>System.Data.DataSetExtensions</AssemblyReference>
+      <AssemblyReference>System.Net.Mail</AssemblyReference>
+    </sco:Collection>
+  </TextExpression.ReferencesForImplementation>
+  <Sequence DisplayName="09b - Teams and Slack alerts"><Sequence.Variables><Variable x:TypeArguments="x:String" Name="teamsJson" /><Variable x:TypeArguments="x:String" Name="slackJson" /><Variable x:TypeArguments="x:String" Name="summary" /><Variable x:TypeArguments="x:String" Name="response" /><Variable x:TypeArguments="x:Int32" Name="statusCode" /></Sequence.Variables><ui:InvokeCode DisplayName="Invoke Code - compose Teams and Slack messages" Language="VBNet" Code="Dim total As Integer = Convert.ToInt32(in_Stats(&quot;Total&quot;))&#xA;Dim nFail As Integer = Convert.ToInt32(in_Stats(&quot;Fail&quot;))&#xA;Dim nWarn As Integer = Convert.ToInt32(in_Stats(&quot;Warning&quot;))&#xA;Dim nPass As Integer = Convert.ToInt32(in_Stats(&quot;Pass&quot;))&#xA;Dim nEsc As Integer = Convert.ToInt32(in_Stats(&quot;Escalations&quot;))&#xA;Dim runId As String = Convert.ToString(in_Config(&quot;RunId&quot;))&#xA;Dim project As String = Convert.ToString(in_Config(&quot;ProjectName&quot;))&#xA;Dim headline As String&#xA;If nFail &gt; 0 Then&#xA;    headline = String.Format(&quot;ACTION REQUIRED: {0} blockchain validation failure(s)&quot;, nFail)&#xA;ElseIf nWarn &gt; 0 Then&#xA;    headline = String.Format(&quot;REVIEW: {0} blockchain validation warning(s)&quot;, nWarn)&#xA;Else&#xA;    headline = String.Format(&quot;OK: all {0} blockchain transactions validated&quot;, total)&#xA;End If&#xA;&#xA;' The findings list is capped so a large run cannot exceed either service's message size.&#xA;Dim findings As New List(Of String())&#xA;If in_dtExceptions IsNot Nothing Then&#xA;    For Each r As DataRow In in_dtExceptions.Rows&#xA;        findings.Add(New String() {Convert.ToString(r(&quot;ShipmentID&quot;)), Convert.ToString(r(&quot;EventName&quot;)), _&#xA;            Convert.ToString(r(&quot;ValidationStatus&quot;)), Convert.ToString(r(&quot;Severity&quot;)), Convert.ToString(r(&quot;FailureReasons&quot;))})&#xA;    Next&#xA;End If&#xA;Dim shown As Integer = Math.Min(findings.Count, 15)&#xA;&#xA;' ---- Microsoft Teams: an Adaptive Card, the format Teams Workflows webhooks accept ----&#xA;Dim facts As New JArray()&#xA;For Each kv As String() In New String()() { _&#xA;        New String() {&quot;Run&quot;, runId}, New String() {&quot;Bot&quot;, Convert.ToString(in_Config(&quot;BotIdentity&quot;))}, _&#xA;        New String() {&quot;Validated&quot;, total.ToString()}, _&#xA;        New String() {&quot;Passed&quot;, nPass.ToString() &amp; &quot; (&quot; &amp; Convert.ToString(in_Stats(&quot;PassPercent&quot;)) &amp; &quot;%)&quot;}, _&#xA;        New String() {&quot;Warnings&quot;, nWarn.ToString()}, New String() {&quot;Failed&quot;, nFail.ToString()}, _&#xA;        New String() {&quot;Escalated&quot;, nEsc.ToString()}}&#xA;    Dim fo As New JObject()&#xA;    fo(&quot;title&quot;) = kv(0)&#xA;    fo(&quot;value&quot;) = kv(1)&#xA;    facts.Add(fo)&#xA;Next&#xA;Dim cardBody As New JArray()&#xA;Dim t1 As New JObject()&#xA;t1(&quot;type&quot;) = &quot;TextBlock&quot; : t1(&quot;size&quot;) = &quot;Large&quot; : t1(&quot;weight&quot;) = &quot;Bolder&quot; : t1(&quot;wrap&quot;) = True&#xA;t1(&quot;text&quot;) = headline&#xA;t1(&quot;color&quot;) = If(nFail &gt; 0, &quot;Attention&quot;, If(nWarn &gt; 0, &quot;Warning&quot;, &quot;Good&quot;))&#xA;cardBody.Add(t1)&#xA;Dim t2 As New JObject()&#xA;t2(&quot;type&quot;) = &quot;TextBlock&quot; : t2(&quot;isSubtle&quot;) = True : t2(&quot;wrap&quot;) = True : t2(&quot;spacing&quot;) = &quot;None&quot;&#xA;t2(&quot;text&quot;) = project &amp; &quot; - blockchain transaction validation&quot;&#xA;cardBody.Add(t2)&#xA;Dim fs As New JObject()&#xA;fs(&quot;type&quot;) = &quot;FactSet&quot;&#xA;fs(&quot;facts&quot;) = facts&#xA;cardBody.Add(fs)&#xA;For i As Integer = 0 To shown - 1&#xA;    Dim ft As New JObject()&#xA;    ft(&quot;type&quot;) = &quot;TextBlock&quot; : ft(&quot;wrap&quot;) = True : ft(&quot;separator&quot;) = (i = 0)&#xA;    ft(&quot;text&quot;) = String.Format(&quot;**{0} / {1}** - {2} ({3}): {4}&quot;, findings(i)(0), findings(i)(1), findings(i)(2), findings(i)(3), findings(i)(4))&#xA;    cardBody.Add(ft)&#xA;Next&#xA;If findings.Count &gt; shown Then&#xA;    Dim more As New JObject()&#xA;    more(&quot;type&quot;) = &quot;TextBlock&quot; : more(&quot;isSubtle&quot;) = True&#xA;    more(&quot;text&quot;) = String.Format(&quot;... and {0} more - see the attached reports.&quot;, findings.Count - shown)&#xA;    cardBody.Add(more)&#xA;End If&#xA;Dim card As New JObject()&#xA;card(&quot;$schema&quot;) = &quot;http://adaptivecards.io/schemas/adaptive-card.json&quot;&#xA;card(&quot;type&quot;) = &quot;AdaptiveCard&quot;&#xA;card(&quot;version&quot;) = &quot;1.4&quot;&#xA;card(&quot;body&quot;) = cardBody&#xA;Dim attachment As New JObject()&#xA;attachment(&quot;contentType&quot;) = &quot;application/vnd.microsoft.card.adaptive&quot;&#xA;attachment(&quot;content&quot;) = card&#xA;Dim teams As New JObject()&#xA;teams(&quot;type&quot;) = &quot;message&quot;&#xA;teams(&quot;attachments&quot;) = New JArray(attachment)&#xA;&#xA;' ---- Slack: Block Kit via an incoming webhook ---------------------------------------&#xA;Dim blocks As New JArray()&#xA;Dim hdr As New JObject()&#xA;hdr(&quot;type&quot;) = &quot;header&quot;&#xA;hdr(&quot;text&quot;) = New JObject(New JProperty(&quot;type&quot;, &quot;plain_text&quot;), New JProperty(&quot;text&quot;, Left(headline, 150)))&#xA;blocks.Add(hdr)&#xA;Dim fieldsArr As New JArray()&#xA;For Each kv As String() In New String()() { _&#xA;        New String() {&quot;Validated&quot;, total.ToString()}, New String() {&quot;Passed&quot;, nPass.ToString()}, _&#xA;        New String() {&quot;Warnings&quot;, nWarn.ToString()}, New String() {&quot;Failed&quot;, nFail.ToString()}, _&#xA;        New String() {&quot;Escalated&quot;, nEsc.ToString()}, New String() {&quot;Run&quot;, runId}}&#xA;    fieldsArr.Add(New JObject(New JProperty(&quot;type&quot;, &quot;mrkdwn&quot;), New JProperty(&quot;text&quot;, &quot;*&quot; &amp; kv(0) &amp; &quot;*&quot; &amp; vbLf &amp; kv(1))))&#xA;Next&#xA;blocks.Add(New JObject(New JProperty(&quot;type&quot;, &quot;section&quot;), New JProperty(&quot;fields&quot;, fieldsArr)))&#xA;If shown &gt; 0 Then&#xA;    Dim lines As New StringBuilder()&#xA;    For i As Integer = 0 To shown - 1&#xA;        lines.AppendLine(String.Format(&quot;- *{0} / {1}* {2} ({3}): {4}&quot;, findings(i)(0), findings(i)(1), findings(i)(2), findings(i)(3), findings(i)(4)))&#xA;    Next&#xA;    If findings.Count &gt; shown Then lines.AppendLine(String.Format(&quot;_... and {0} more_&quot;, findings.Count - shown))&#xA;    blocks.Add(New JObject(New JProperty(&quot;type&quot;, &quot;divider&quot;)))&#xA;    blocks.Add(New JObject(New JProperty(&quot;type&quot;, &quot;section&quot;), _&#xA;        New JProperty(&quot;text&quot;, New JObject(New JProperty(&quot;type&quot;, &quot;mrkdwn&quot;), New JProperty(&quot;text&quot;, Left(lines.ToString(), 2900))))))&#xA;End If&#xA;Dim slack As New JObject()&#xA;slack(&quot;text&quot;) = headline &amp; &quot; - &quot; &amp; runId&#xA;slack(&quot;blocks&quot;) = blocks&#xA;&#xA;out_TeamsJson = teams.ToString(Newtonsoft.Json.Formatting.None)&#xA;out_SlackJson = slack.ToString(Newtonsoft.Json.Formatting.None)&#xA;&#xA;' Always keep a copy beside the reports: the evidence of what was (or would be) posted.&#xA;Dim folder As String = Convert.ToString(in_Config(&quot;ReportsFolder&quot;))&#xA;Directory.CreateDirectory(folder)&#xA;File.WriteAllText(Path.Combine(folder, &quot;Alert_&quot; &amp; runId &amp; &quot;_teams.json&quot;), teams.ToString(Newtonsoft.Json.Formatting.Indented), Encoding.UTF8)&#xA;File.WriteAllText(Path.Combine(folder, &quot;Alert_&quot; &amp; runId &amp; &quot;_slack.json&quot;), slack.ToString(Newtonsoft.Json.Formatting.Indented), Encoding.UTF8)&#xA;out_Summary = String.Format(&quot;Teams and Slack payloads composed ({0} finding(s), {1} listed) and saved beside the reports&quot;, findings.Count, shown)"><ui:InvokeCode.Arguments><scg:Dictionary x:TypeArguments="x:String, Argument"><InArgument x:TypeArguments="scg:Dictionary(x:String, x:Object)" x:Key="in_Config">[in_Config]</InArgument><InArgument x:TypeArguments="sd:DataTable" x:Key="in_dtExceptions">[in_dtExceptions]</InArgument><InArgument x:TypeArguments="scg:Dictionary(x:String, x:Object)" x:Key="in_Stats">[in_Stats]</InArgument><OutArgument x:TypeArguments="x:String" x:Key="out_TeamsJson">[teamsJson]</OutArgument><OutArgument x:TypeArguments="x:String" x:Key="out_SlackJson">[slackJson]</OutArgument><OutArgument x:TypeArguments="x:String" x:Key="out_Summary">[summary]</OutArgument></scg:Dictionary></ui:InvokeCode.Arguments></ui:InvokeCode><ui:LogMessage DisplayName="Log - [ALERT/WEBHOOK]" Level="Info" Message="[&quot;[ALERT/WEBHOOK] &quot; &amp; summary]" /><If DisplayName="If - TeamsWebhookUrl configured" Condition="[Convert.ToString(in_Config(&quot;TeamsWebhookUrl&quot;)).Trim() &lt;&gt; &quot;&quot;]"><If.Then><If DisplayName="If - anything to report to Teams" Condition="[in_ShouldSend]"><If.Then><Sequence DisplayName="Post to Teams"><ui:HttpClient DisplayName="HTTP Request - Teams webhook" EndPoint="[Convert.ToString(in_Config(&quot;TeamsWebhookUrl&quot;)).Trim()]" Method="POST" AcceptFormat="ANY" BodyFormat="application/json" Body="[teamsJson]" TimeoutMS="[30000]" Result="[response]" StatusCode="[statusCode]" /><If DisplayName="If - Teams accepted" Condition="[statusCode &gt;= 200 AndAlso statusCode &lt; 300]"><If.Then><ui:LogMessage DisplayName="Log - [ALERT/TEAMS] Posted - HTTP" Level="Info" Message="[&quot;[ALERT/TEAMS] Posted - HTTP &quot; &amp; statusCode.ToString()]" /></If.Then><If.Else><ui:LogMessage DisplayName="Log - [ALERT/TEAMS] Webhook rejected the message - H" Level="Warn" Message="[&quot;[ALERT/TEAMS] Webhook rejected the message - HTTP &quot; &amp; statusCode.ToString() &amp; &quot; &quot; &amp; response]" /></If.Else></If></Sequence></If.Then><If.Else><ui:LogMessage DisplayName="Log - [ALERT/TEAMS] Nothing failed or warned - no me" Level="Info" Message="[&quot;[ALERT/TEAMS] Nothing failed or warned - no message posted.&quot;]" /></If.Else></If></If.Then><If.Else><ui:LogMessage DisplayName="Log - [ALERT/TEAMS] TeamsWebhookUrl is blank - paylo" Level="Info" Message="[&quot;[ALERT/TEAMS] TeamsWebhookUrl is blank - payload saved to Reports instead of posted.&quot;]" /></If.Else></If><If DisplayName="If - SlackWebhookUrl configured" Condition="[Convert.ToString(in_Config(&quot;SlackWebhookUrl&quot;)).Trim() &lt;&gt; &quot;&quot;]"><If.Then><If DisplayName="If - anything to report to Slack" Condition="[in_ShouldSend]"><If.Then><Sequence DisplayName="Post to Slack"><ui:HttpClient DisplayName="HTTP Request - Slack webhook" EndPoint="[Convert.ToString(in_Config(&quot;SlackWebhookUrl&quot;)).Trim()]" Method="POST" AcceptFormat="ANY" BodyFormat="application/json" Body="[slackJson]" TimeoutMS="[30000]" Result="[response]" StatusCode="[statusCode]" /><If DisplayName="If - Slack accepted" Condition="[statusCode &gt;= 200 AndAlso statusCode &lt; 300]"><If.Then><ui:LogMessage DisplayName="Log - [ALERT/SLACK] Posted - HTTP" Level="Info" Message="[&quot;[ALERT/SLACK] Posted - HTTP &quot; &amp; statusCode.ToString()]" /></If.Then><If.Else><ui:LogMessage DisplayName="Log - [ALERT/SLACK] Webhook rejected the message - H" Level="Warn" Message="[&quot;[ALERT/SLACK] Webhook rejected the message - HTTP &quot; &amp; statusCode.ToString() &amp; &quot; &quot; &amp; response]" /></If.Else></If></Sequence></If.Then><If.Else><ui:LogMessage DisplayName="Log - [ALERT/SLACK] Nothing failed or warned - no me" Level="Info" Message="[&quot;[ALERT/SLACK] Nothing failed or warned - no message posted.&quot;]" /></If.Else></If></If.Then><If.Else><ui:LogMessage DisplayName="Log - [ALERT/SLACK] SlackWebhookUrl is blank - paylo" Level="Info" Message="[&quot;[ALERT/SLACK] SlackWebhookUrl is blank - payload saved to Reports instead of posted.&quot;]" /></If.Else></If></Sequence>
+</Activity>

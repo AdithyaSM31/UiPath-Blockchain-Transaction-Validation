@@ -30,10 +30,11 @@ top and the status should read *Connected*. If it does not, in Assistant use
 
 ## 1. Publish the package
 
-> **Already done.** Version **1.0.92** was published to the tenant feed on 11 Sep 2026
-> (adding the HTML dashboard workflow). Confirm it under **Tenant → Packages** in Orchestrator. Steps 2 onwards are
-> still outstanding — the CLI publishes the package but cannot create a Process, Queue or
-> Trigger; those are done in the web UI.
+> **Republish required.** Version **1.0.92** was published to the tenant feed on 11 Sep 2026.
+> This release adds the PDF report, Teams/Slack alerts, the SQL/CSV ERP sources, the field
+> mapping layer, the standalone Performer and the `UiPath.Database.Activities` dependency, so
+> publish the current version before creating processes. Steps 2 onwards are done in the web
+> UI — the CLI publishes the package but cannot create a Process, Queue or Trigger.
 >
 > Republish after any change with:
 >
@@ -57,9 +58,13 @@ powershell -File "build.ps1" -SkipRun
 That writes a `.nupkg` to `%TEMP%\blv-packages\`. Upload it in Orchestrator under
 **Tenant → Packages → Upload**.
 
-> **Delete `Data\Config.local.json` before publishing for grading.** It carries
-> machine-specific paths (and would carry an API key if you added one). It is a local
-> override file, not part of the deliverable.
+> **Delete `Data\Config.local.json` and empty `Data\Output` before publishing for grading.**
+> The first carries machine-specific paths (and any API key, SMTP password or webhook URL you
+> added); the second holds local run outputs. Neither is part of the deliverable.
+>
+> **Build and run on machines without Windows Smart App Control.** Smart App Control can block
+> the compiled, unsigned workflow assemblies inside the package, so a robot machine where it
+> is on cannot execute the process.
 
 ---
 
@@ -125,16 +130,16 @@ Before the first unattended run, set these in `Config.xlsx`:
 
 ## 4. Queue-based processing (high volume)
 
-> ### ⚠️ This section is untested
+> ### ⚠️ The live queue hop is untested
 >
-> `Dispatcher.xaml` and `Performer.xaml` compile and are structurally correct, and the
-> dispatcher's real logic — grouping, serialisation and payload construction — is fully
-> exercised by `RunMode = DISPATCH` with `QueueMode = DRYRUN` (verified: 48 transactions →
-> 12 payloads). But `Add Queue Item`, `Get Transaction Item` and `Set Transaction Status`
-> have **never been run against a live Orchestrator queue**, because that needs a tenant.
->
-> Budget time to debug this. Everything else in the project has been executed end to end;
-> this has not.
+> Everything except the three Orchestrator queue activities is exercised locally:
+> `RunMode = DISPATCH` with `QueueMode = DRYRUN` writes the per-shipment payloads, and running
+> `Workflows\Queue\Performer.xaml` in DRYRUN reads them back, validates every shipment, and
+> produces the full audit log, reports, alerts and dashboard (acceptance suite check #16,
+> expected `[PERFORM] total=48 pass=40 warn=1 fail=7 escalations=1`). `Add Queue Item`,
+> `Get Transaction Item` and `Set Transaction Status` compile and pass the Workflow Analyzer
+> but have **not run against a live Orchestrator queue**, because that needs a tenant.
+> Budget time for that first live run.
 
 ### 4.1 Why a shipment, not a transaction
 
@@ -157,12 +162,14 @@ no rule reaches across shipments, so nothing is lost by splitting there.
 
 ### 4.3 Two processes
 
-| Process | Entry point | Config |
+| Process | Entry point | Configuration |
 |---|---|---|
 | `BLV Dispatcher` | `Main.xaml` | `RunMode = DISPATCH`, `QueueMode = ORCHESTRATOR` |
-| `BLV Performer` | `Workflows\Queue\Performer.xaml` | — |
+| `BLV Performer` | `Workflows\Queue\Performer.xaml` | `QueueMode = ORCHESTRATOR` (it reads the same `Config.xlsx`) |
 
-Set the Performer's entry point under **Process → Edit → Entry point**.
+Both entry points are registered in `project.json`, so they appear in the entry-point list
+when the process is created. The Performer needs no arguments: started on its own it loads
+the configuration itself.
 
 Each queue item carries:
 
@@ -182,11 +189,28 @@ Each queue item carries:
 | Queue | `BlockchainValidationQueue` |
 | Process | `BLV Performer` |
 | Min items | 1 |
-| Max pending jobs | 3 (raise to scale out) |
+| Max pending jobs | 1 per output root (see below) |
 
-The Performer as written processes **one item per job**. To drain the queue in a single job,
-wrap its body in a `Do While` that loops until `Get Transaction Item` returns `Nothing` — the
-"queue empty" branch already handles that case.
+One Performer job **drains the queue**: it loops `Get Transaction Item` until the queue is
+empty, validates each shipment, marks each item Successful or Failed (with the exception
+message), and then runs `14_Finalise_Run` once over everything it processed — human review,
+audit log, chain verification, Excel and PDF reports, alerts and the dashboard. A shipment
+that faults is reported to Orchestrator and does not stop the rest.
+
+**Parallelism and the audit trail.** The hash-chained audit log is single-writer. To process
+in parallel, run Performers on different robot machines, each with its own `BLV_OUTPUT_ROOT`
+(§3.1) — every machine then keeps its own verifiable chain. Two jobs appending to one file
+would interleave entries and the next verification would report a broken link.
+
+### 4.5 Rehearse without a tenant
+
+```bash
+powershell -File "build.ps1" -Set @{ RunMode = "DISPATCH" }
+powershell -File "build.ps1" -Entry "Workflows\Queue\Performer.xaml"
+```
+
+The first writes `Reports\QueueDryRun\queue_payloads_<run>.json`; the second processes that
+file exactly as it would process the live queue.
 
 ---
 
@@ -194,6 +218,7 @@ wrap its body in a `Do While` that loops until `Get Transaction Item` returns `N
 
 | Where | What to look at |
 |---|---|
+| **Automations → Processes → BLV Performer** | Jobs per queue drain; the last log line of each reports the shipments processed and failed |
 | **Automations → Jobs** | Success rate, duration, failure reasons |
 | **Queues → Transactions** | Per-shipment status; failed items carry the exception message |
 | **Tenant → Logs** | Every `[INIT]`, `[VALIDATE]`, `[AUDIT]`, `[VERIFY]` line the bot writes |
@@ -235,3 +260,6 @@ Community tenants expire. Capture these before the deadline, not on the day.
 | Reports written under `.nuget\packages\...` | `BLV_OUTPUT_ROOT` not set, or the Robot service was not restarted after setting it | See §3.1 |
 | `[VERIFY] INVALID ... broken link` | The audit file was edited, truncated, or two robots appended concurrently | Give each robot its own audit folder |
 | `DataSourceMode is API but EtherscanApiKey is blank` | API mode without a key | Add the key to `Config.local.json`, not `Config.xlsx` |
+| `An Application Control policy has blocked this file` | Windows Smart App Control on the build/run machine | Build and run on a machine where it is off |
+| `QueueMode is DRYRUN but no dispatcher payload file was found` | Performer started in DRYRUN before any dispatch | Set `QueueMode = ORCHESTRATOR` for live runs, or dispatch first |
+| Performer finishes with `Nothing was processed` | Queue empty, or `QueueName` differs from the Orchestrator queue | Check the queue name in `Config.xlsx` |

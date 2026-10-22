@@ -4,6 +4,7 @@
   "description": "UiPath RPA bot that validates blockchain transaction records against enterprise logistics data, producing anomaly alerts, styled reports and a tamper-evident audit trail.",
   "main": "Main.xaml",
   "dependencies": {
+    "UiPath.Database.Activities": "[2.1.1]",
     "UiPath.Excel.Activities": "[3.4.1]",
     "UiPath.Form.Activities": "[25.10.2]",
     "UiPath.Mail.Activities": "[2.7.12]",
@@ -17,7 +18,7 @@
   "entitiesStores": [],
   "schemaVersion": "4.0",
   "studioVersion": "25.10.15.0",
-  "projectVersion": "1.0.93",
+  "projectVersion": "1.1.12",
   "runtimeOptions": {
     "autoDispose": false,
     "netFrameworkLazyLoading": false,
@@ -87,6 +88,30 @@
         "testCaseId": "77b338d6-e9a7-457c-9529-d047f09bd296",
         "testCaseType": "TestCase",
         "fileName": "Tests\\TC07_AuditChain_TamperEvident.xaml"
+      },
+      {
+        "editingStatus": "InProgress",
+        "testCaseId": "d845a7f8-1069-5bb0-9c45-ed4c4e5cbc14",
+        "testCaseType": "TestCase",
+        "fileName": "Tests\\TC08_FieldMapping_ChainAgnostic.xaml"
+      },
+      {
+        "editingStatus": "InProgress",
+        "testCaseId": "e7de4072-4b87-5e2e-81b7-b4d14ae72186",
+        "testCaseType": "TestCase",
+        "fileName": "Tests\\TC09_PdfAuditReport.xaml"
+      },
+      {
+        "editingStatus": "InProgress",
+        "testCaseId": "c9e7ecdb-b5dc-5398-85fa-8f2d0858fd34",
+        "testCaseType": "TestCase",
+        "fileName": "Tests\\TC10_ReviewForm_Timeout.xaml"
+      },
+      {
+        "editingStatus": "InProgress",
+        "testCaseId": "5fc4a274-a076-5291-8db5-b814055bc955",
+        "testCaseType": "TestCase",
+        "fileName": "Tests\\TC11_AlertWebhookPayloads.xaml"
       }
     ],
     "saveToCloud": false
@@ -96,6 +121,18 @@
     {
       "filePath": "Main.xaml",
       "uniqueId": "6c3fa1de-9f04-4c0b-9c5e-7b2a1d5e4f10",
+      "input": [],
+      "output": []
+    },
+    {
+      "filePath": "Workflows\\Queue\\Performer.xaml",
+      "uniqueId": "4cddc762-f66d-5c0f-8f23-025d4837496b",
+      "input": [],
+      "output": []
+    },
+    {
+      "filePath": "Workflows\\12_Verify_AuditChain.xaml",
+      "uniqueId": "001ed6ec-f85d-53ea-b346-aa01ed4f2ba8",
       "input": [],
       "output": []
     },
@@ -138,6 +175,30 @@
     {
       "filePath": "Tests\\TC07_AuditChain_TamperEvident.xaml",
       "uniqueId": "faf8a3f2-9123-5503-b9ff-5e95f21b967c",
+      "input": [],
+      "output": []
+    },
+    {
+      "filePath": "Tests\\TC08_FieldMapping_ChainAgnostic.xaml",
+      "uniqueId": "4c4520b7-9b35-55cf-8735-9c20c8fd505f",
+      "input": [],
+      "output": []
+    },
+    {
+      "filePath": "Tests\\TC09_PdfAuditReport.xaml",
+      "uniqueId": "e7b4a289-508d-53be-9eae-72b75a43bdd1",
+      "input": [],
+      "output": []
+    },
+    {
+      "filePath": "Tests\\TC10_ReviewForm_Timeout.xaml",
+      "uniqueId": "73ad0d21-8fb4-5d67-9e54-7eccefd7ee84",
+      "input": [],
+      "output": []
+    },
+    {
+      "filePath": "Tests\\TC11_AlertWebhookPayloads.xaml",
+      "uniqueId": "ab752297-5bbe-584a-bbe7-c317332a011a",
       "input": [],
       "output": []
     }
