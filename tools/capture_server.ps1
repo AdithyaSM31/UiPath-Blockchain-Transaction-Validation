@@ -15,6 +15,11 @@
     server accepts what it receives and answers 250 / 200, and stops when -StopFile
     appears or after -TimeoutSeconds.
 
+    With -ApiResponseFile it also stands in for the Etherscan V2 API: a GET to /v2/api
+    is answered with that file's JSON, so DataSourceMode = API runs end to end with
+
+        EtherscanBaseUrl = http://127.0.0.1:18080/v2/api
+
     It listens on 127.0.0.1 only, uses plain TcpListener (no admin rights or URL ACLs),
     and handles one connection at a time, which is all a single bot run needs.
 
@@ -25,7 +30,8 @@ param(
     [int]$SmtpPort = 2525,
     [int]$HttpPort = 18080,
     [int]$TimeoutSeconds = 900,
-    [string]$StopFile = ""
+    [string]$StopFile = "",
+    [string]$ApiResponseFile = ""
 )
 $ErrorActionPreference = "Stop"
 
@@ -117,6 +123,13 @@ function Invoke-HttpSession([System.Net.Sockets.TcpClient]$client) {
     $file = Join-Path $CaptureDir ("http_{0}_{1}.txt" -f $script:count, $path)
     $text = $requestLine + "`r`n" + $headers.ToString() + "`r`n" + [System.Text.Encoding]::UTF8.GetString($body, 0, $read)
     [System.IO.File]::WriteAllText($file, $text, [System.Text.Encoding]::UTF8)
+    if ($ApiResponseFile -and $requestLine -match '^GET /v2/api') {
+        $json = [System.IO.File]::ReadAllBytes($ApiResponseFile)
+        Send-Text $s ("HTTP/1.1 200 OK`r`nContent-Type: application/json`r`nContent-Length: {0}`r`nConnection: close`r`n`r`n" -f $json.Length)
+        $s.Write($json, 0, $json.Length)
+        $s.Flush()
+        return
+    }
     Send-Text $s "HTTP/1.1 200 OK`r`nContent-Type: text/plain`r`nContent-Length: 2`r`nConnection: close`r`n`r`nok"
 }
 

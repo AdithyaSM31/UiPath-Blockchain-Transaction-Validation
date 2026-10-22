@@ -47,8 +47,10 @@ To verify every claim this project makes, end to end:
 powershell -ExecutionPolicy Bypass -File "tools\run_all_checks.ps1"
 ```
 
-That suite is the single source of truth for whether the project works: 19 checks,
-including the eleven UiPath test cases. On a machine where Windows Smart App Control blocks
+That suite is the single source of truth for whether the project works: 21 checks,
+including the twelve UiPath test cases, API mode against a local Etherscan stand-in, and the
+review window answered through UI Automation (it appears on screen for a few seconds; add
+`-SkipReviewWindow` if nobody should touch the machine). On a machine where Windows Smart App Control blocks
 newly built workflow assemblies, run the checks that don't need the robot:
 
 ```bash
@@ -114,7 +116,7 @@ BlockchainLogisticsValidator/     the UiPath project - open this in Studio
 │   ├── 13_Report_Dashboard       self-contained HTML dashboard
 │   ├── 14_Finalise_Run           06 -> 13, shared by batch and queue mode
 │   └── Queue/Dispatcher,Performer  work-queue mode via a local file (Performer is an entry point)
-├── Tests/TC01..TC11              UiPath test cases
+├── Tests/TC01..TC12              UiPath test cases
 ├── Data/
 │   ├── Config.xlsx               the control panel
 │   ├── Input/                    ERP workbook, CSV exports, Access DB, tx map, chain feeds
@@ -201,14 +203,15 @@ store that could drift.
 
 | Tool | What it proves |
 |---|---|
-| `tools\run_all_checks.ps1` | Everything below, in one command (19 checks) |
+| `tools\run_all_checks.ps1` | Everything below, in one command (21 checks) |
 | `tools\verify_seeded_data.py` | Independent oracle: the anomalies exist, the ABI decodes, every alternative feed and ERP source carries identical data |
 | `tools\compile_check.ps1` | Every Invoke Code body compiles against the robot's references |
 | `build.ps1 -Analyze` | Workflow Analyzer, no Error-severity findings |
-| `tools\run_tests.ps1` | The eleven UiPath test cases |
+| `tools\run_tests.ps1` | The twelve UiPath test cases |
+| `tools\review_window_test.ps1` | The PROMPT review window, answered through Windows UI Automation; the decision reaches the audit chain |
 | `tools\tamper_test.ps1` | Editing the audit log is detected at the exact line |
 | `tools\chain_swap_demo.ps1` | Identical results on Ethereum, Polygon and a Besu ethereum-etl export |
-| `tools\capture_server.ps1` | Local SMTP + webhook stand-in used to test alert delivery offline |
+| `tools\capture_server.ps1` | Local SMTP, webhook and Etherscan V2 stand-in used to test alert delivery and API mode offline |
 
 The dataset oracle is a deliberately separate implementation from the generator. If the bot
 and the oracle ever disagree, one of them is wrong and the run is not signed off.
@@ -233,7 +236,7 @@ will overwrite your changes.
 
 ## Testing
 
-Eleven UiPath test cases live in `Tests/` and appear in Studio's **Test Explorer**
+Twelve UiPath test cases live in `Tests/` and appear in Studio's **Test Explorer**
 (Test tab → Run All Tests):
 
 | Test | Covers |
@@ -244,6 +247,7 @@ Eleven UiPath test cases live in `Tests/` and appear in Studio's **Test Explorer
 | TC09 | PDF audit report: header, xref offsets, objects and page tree are consistent |
 | TC10 | Review form: pauses, times out to DEFERRED, attributes the timeout, keeps an evidence image |
 | TC11 | Teams Adaptive Card and Slack Block Kit payloads |
+| TC12 | Ledger noise: a value transfer is skipped, a call to another function is ignored, truncated call data and a non-object are rejected — with and without the function table, and in LOOKUP mode |
 
 Each asserts with `VerifyExpression` for the Test Explorer report, then throws if any
 assertion failed, so a regression is also visible as a non-zero exit code.

@@ -40,7 +40,7 @@ Two people talking over one screen reads as unprepared.
 powershell -ExecutionPolicy Bypass -File "tools\run_all_checks.ps1"
 ```
 
-Expect `19/19 checks passed` (that includes `11/11 test cases passed`). If anything is red,
+Expect `21/21 checks passed` (that includes `12/12 test cases passed`). If anything is red,
 fix it before the room fills. Budget about fifteen minutes for the run.
 
 Then reset to a clean state so the audit-log line counts are easy to narrate:
@@ -210,7 +210,7 @@ then restores the file and verifies clean again.
 
 ## 5.5 · Tests (30s) — optional, strong if there's time
 
-Open the **Test** tab in Studio and run all tests. Eleven go green.
+Open the **Test** tab in Studio and run all tests. Twelve go green.
 
 > "Six of these drive one validation rule each against fixtures built in the test, so a
 > failure points at exactly one rule. The rest prove the audit chain catches tampering, the
@@ -245,7 +245,7 @@ isn't it deployed to Orchestrator?" below.
 
 > "Automated reconciliation of blockchain records against enterprise systems, six configurable
 > rules, human escalation where it matters, and an audit trail that proves it wasn't altered
-> afterwards. The whole thing is verified by a nineteen-check acceptance suite that runs in one
+> afterwards. The whole thing is verified by a twenty-one-check acceptance suite that runs in one
 > command, and the bot writes its own dashboard and PDF audit report."
 
 ---
@@ -300,9 +300,10 @@ real keccak-256 function selectors, and correctly ABI-encoded call data in an au
 Etherscan V2 response envelope. `API` mode against the live chain uses the same parser.
 
 **"Where are the tests?"**
-Eleven UiPath test cases in the Test tab — six drive one rule each against hand-built
+Twelve UiPath test cases in the Test tab — six drive one rule each against hand-built
 fixtures; the others cover audit-chain tampering, field-mapping equivalence, PDF structure,
-the review form's timeout, and the Teams/Slack payloads. They
+the review form's timeout, the Teams/Slack payloads, and ledger noise the mapping engine must
+set aside. They
 cover edge cases the sample data doesn't: a drift exactly at the tolerance boundary, a
 checksummed address against a lower-case whitelist, the same hash on two shipments. One of
 them found a real bug while being written — R4 assumed a hash was at least 12 characters

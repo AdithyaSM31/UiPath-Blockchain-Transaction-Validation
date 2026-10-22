@@ -47,7 +47,7 @@ on which machine.
 | Deck item | Implementation | Checked by | Status |
 |---|---|---|---|
 | Option A — browser automation of an explorer, Data Scraping Wizard | `01c_Extract_FromExplorerUI` fetches the explorer page and parses its transaction table by column header | suite #11 | **Partial** — HTML parsing, not a recorded browser scrape. UIAutomation 25.10 removed the classic Data Scraping activity and the UiPath browser extension is not installed on the build machine; the upgrade path is documented in the workflow. Option B (API) is fully implemented. |
-| Option B — HTTP Request to `api.etherscan.io … action=txlist`, Deserialize JSON | `01b_Extract_FromEtherscanApi` (Etherscan **V2** endpoint; V1 is retired) | TC08 maps the Etherscan-shaped records; live call needs a key | Done – external (API key) |
+| Option B — HTTP Request to `api.etherscan.io … action=txlist`, Deserialize JSON | `01b_Extract_FromEtherscanApi` (Etherscan **V2** endpoint; V1 is retired) | suite #18 (HTTP request to a local Etherscan V2 stand-in), TC08 | Done – external (live API key) |
 | Extracted data stored in a DataTable | `01d` output `dtChain` | TC08 | Done |
 | Logistics: Excel Application Scope / Read Range | `02` EXCEL branch, sheet names from Config | suite #4 | Done |
 | Logistics: Database Connect for ERP/SQL | `02` SQL branch: **Database Connect → Execute Query ×2 → Disconnect** (UiPath.Database.Activities), ODBC to `LogisticsERP.accdb` by default | suite #13 | Done |
@@ -85,7 +85,7 @@ on which machine.
 | Novelty | Deck claim | Implementation | Checked by | Status |
 |---|---|---|---|---|
 | 1 | Rules in an external Excel config, no workflow edits | `Config.xlsx` → `ValidationRules`, `ApprovedWallets`, `EventSequence`, `FieldMapping*`, `Settings`; every Settings row is read by the bot | suite #5 | Done |
-| 2 | Attended escalation: bot pauses on a high-severity anomaly, shows an interactive form, resumes on the human decision | `06_HumanInTheLoop_Escalation`: escalates on `FailAction = ESCALATE` or severity ≥ `EscalationSeverity`; `EscalationMode = PROMPT` shows the review form (every fact, decision options, reviewer name, note, auto-timeout, evidence image); decision hashed into the audit log | suite #8, TC10 | **Partial** — the form is a WPF window built in the workflow rather than a Studio-designed `.uiform` (UiPath Forms 25.10 files can only be authored in Studio's visual designer). `ReviewUi = DIALOG` falls back to Input Dialog. |
+| 2 | Attended escalation: bot pauses on a high-severity anomaly, shows an interactive form, resumes on the human decision | `06_HumanInTheLoop_Escalation`: escalates on `FailAction = ESCALATE` or severity ≥ `EscalationSeverity`; `EscalationMode = PROMPT` shows the review form (every fact, decision options, reviewer name, note, auto-timeout, evidence image); decision hashed into the audit log | suite #8, #20, TC10 | **Partial** — the form is a WPF window built in the workflow rather than a Studio-designed `.uiform` (UiPath Forms 25.10 files can only be authored in Studio's visual designer). `ReviewUi = DIALOG` falls back to Input Dialog. |
 | 3 | Any chain by changing the API endpoint and field mappings | `EtherscanBaseUrl`, `ChainId`, `ChainRecordsPath`, `FieldMappingSheet` + `01d` generic mapper; demo feeds for Ethereum, Polygon and a Hyperledger Besu ethereum-etl export with different field names | suite #9, TC08 | Done |
 | 4 | Log with bot identity, timestamp, input-data hash, result, and hash of previous entry | `10_AuditLog_Chained`: `BotIdentity`, `TimestampUtc`, `InputDataHash`, `ValidationStatus`, `RecordHash`, `PrevHash`, `EntryHash`; `12_Verify_AuditChain` re-walks it | suite #10, TC07 | Done |
 
@@ -113,7 +113,7 @@ on which machine.
 | 7–9 | Six-rule engine | `05`, `Rules\` |
 | 10–11 | Excel + PDF, audit logs, alerts, dashboard | `07`–`13` |
 | 12 | Orchestrator deployment, schedules, queues | Descoped; `Queue\` dispatcher / performer over a local work-queue file |
-| 13 | Tests and refinement | `Tests\TC01–TC11`, `tools\run_all_checks.ps1` |
+| 13 | Tests and refinement | `Tests\TC01–TC12`, `tools\run_all_checks.ps1` |
 | 14 | User guide, technical docs, handover notes | [USER_GUIDE.md](USER_GUIDE.md), [README.md](../README.md), this file |
 
 ## Slide 12 — Expected outcomes
@@ -132,26 +132,17 @@ Slides 10 and 13 (future scope) describe later work, not Review 1 commitments.
 
 ## Verification status
 
-**Static checks — run on 16 Sep 2026 on the development laptop, all passing:**
+**22 Oct 2026, development laptop, UiPath Studio and Robot 26.0.204, Studio only (no
+Orchestrator):** the full acceptance suite passed **21/21**, including all twelve test cases
+(TC01–TC12), API mode against a local Etherscan stand-in (suite #18) and the review window
+answered through UI Automation (suite #20). Details and the history of earlier runs are in
+[RESULTS.md](RESULTS.md).
 
-- `tools\verify_seeded_data.py` — dataset oracle, including the new ETL feed, CSV exports and mapping file
-- `tools\compile_check.ps1` — all 59 Invoke Code bodies (workflows and tests) compile against the robot's .NET 8 references
-- `UiRobot pack` — every workflow and test case loads and every XAML expression compiles
-- Workflow Analyzer — no Error-severity findings
-
-**End-to-end run on the same laptop, 16 Sep 2026:** the refactored configuration loading,
-extraction, field mapping (`01d`), ERP canonicalisation (`02`, EXCEL source), mapping join
-(`03`) and validation engine (`05`) produced `total=48 pass=40 warn=1 fail=7 escalations=1`,
-identical to the original release.
-
-**Still to run:** after that run, Windows **Smart App Control** on this laptop began
-blocking each newly compiled, unsigned workflow assembly, so the robot could no longer
-execute fresh builds here. The remaining end-to-end checks (suite #4–#18, TC01–TC11) must
-be run on a machine without Smart App Control:
+To re-run everything:
 
 ```bash
-powershell -ExecutionPolicy Bypass -File "tools\run_all_checks.ps1"
+powershell -ExecutionPolicy Bypass -File "toolsun_all_checks.ps1"
 ```
 
-If you'd rather keep Smart App Control on, `powershell -ExecutionPolicy Bypass -File tools\run_all_checks.ps1 -StaticOnly`
-runs the three static checks.
+On a machine where Windows Smart App Control blocks newly built workflow assemblies, add
+`-StaticOnly` to run the three checks that don't need the robot.

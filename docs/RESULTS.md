@@ -52,10 +52,19 @@ Four defects were found by running these for the first time, and fixed:
 | TC08 | Canonical `DateTime` columns were created with a `DataColumn`'s default `DateTimeMode` of `UnspecifiedLocal`, which strips `DateTimeKind.Utc` back to `Unspecified` on read. The transforms produce correct UTC values, but for a column named `EventTimestampUtc` anything comparing against `DateTime.UtcNow` or re-serialising would reinterpret it in the robot's local zone. Now `DataSetDateTime.Utc`. |
 | TC08 | *Test* bug: `Invoke Code` runs its body by reflection, so the exception reaching the catch is a `TargetInvocationException` whose own `Message` is generic. The assertion that an incomplete mapping sheet is "rejected by name" was reading the wrapper, not the inner message. Now `GetBaseException().Message`. |
 
-> **Not yet re-measured:** a full 19/19 suite run *after* the four fixes above. The run that
-> measured 18/19 predates them; since then `11/11` test cases and a clean pack have been
-> confirmed directly, but the complete suite has not been re-run end to end. Run
-> `powershell -ExecutionPolicy Bypass -File tools\run_all_checks.ps1` and record the number here.
+## 0.2 Final verification, Studio only — 22 Oct 2026
+
+Run on the development laptop with UiPath Studio and Robot **26.0.204**.
+
+| Check | Result |
+|---|---|
+| Full acceptance suite after the four fixes above, before the changes below | **19/19** (11/11 test cases) |
+| Orchestrator removed: dispatch writes a local work-queue file, the Performer processes it | 12 items → `total=48 pass=40 warn=1 fail=7 escalations=1`, audit chain VALID |
+| Calls to other contract functions ignored by the mapping engine (TC12) | passed |
+| New suite check #18 — API mode against a local Etherscan V2 stand-in | passed: correct request, key redacted, same verdict |
+| New suite check #20 — review window answered through UI Automation | passed: 6/6, decision and reviewer in the audit chain |
+| `tools\compile_check.ps1` | 58/58 Invoke Code bodies compile |
+| **Full acceptance suite, final** | **21/21** (12/12 test cases) |
 
 Two environment notes, both now handled in `tools\UiPathPaths.ps1` and documented in
 [USER_GUIDE.md §2.1](USER_GUIDE.md#21-two-things-that-bite-on-a-fresh-machine): Studio 26

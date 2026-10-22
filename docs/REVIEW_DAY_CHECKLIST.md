@@ -16,10 +16,11 @@ the demo walkthrough is in [DEMO_SCRIPT.md](DEMO_SCRIPT.md). This file is just t
 
       powershell -ExecutionPolicy Bypass -File "tools\run_all_checks.ps1"
 
-  Expect every check to pass, including the eleven UiPath test cases. If anything is red,
+  Expect `21/21 checks passed`, including the twelve UiPath test cases. If anything is red,
   fix it now — not in the room.
 
-  > Near the end the suite answers an on-screen dialog itself (check 17, failure handling).
+  > Near the end the suite answers on-screen windows itself (check 17, failure handling, and
+  > check 20, the review window).
   > **Do not touch the mouse or keyboard while it finishes**, or your click lands in the
   > dialog instead of its own.
 
@@ -61,7 +62,7 @@ the demo walkthrough is in [DEMO_SCRIPT.md](DEMO_SCRIPT.md). This file is just t
 - [ ] **Confirm the Project panel is clean** — no yellow warning triangles on
       `Main.xaml`, `Workflows\`, or `Tests\`.
 
-- [ ] **Open the Test tab** once so Test Explorer populates all eleven test cases. It is slow
+- [ ] **Open the Test tab** once so Test Explorer populates all twelve test cases. It is slow
       the first time and instant afterwards, which matters if you demo them.
 
 - [ ] Leave **`Main.xaml`** open on screen. That is the panel to present from: the phase

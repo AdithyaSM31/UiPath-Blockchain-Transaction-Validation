@@ -797,7 +797,7 @@ def slide_verification(prs, n, checks, tests, analyzer="0"):
     tiles = [(checks, "Acceptance checks passing"),
              (tests, "UiPath test cases passing"),
              (analyzer, "Workflow Analyzer errors"),
-             ("59/59", "Invoke Code bodies compile")]
+             ("58/58", "Invoke Code bodies compile")]
     for i, (big, lab) in enumerate(tiles):
         x = L + i * 3.0
         card(s, x, 1.6, 2.86, 1.3)
@@ -827,9 +827,9 @@ def slide_verification(prs, n, checks, tests, analyzer="0"):
          bold=True, color=PURPLE)
     text(s, 7.57, 3.6, 5.0, 0.8,
          "Six drive one validation rule each against fixtures built inside the test, so a "
-         "failure points at exactly one rule. The other five cover audit-chain tampering, "
+         "failure points at exactly one rule. The other six cover audit-chain tampering, "
          "field-mapping equivalence across two schemas, PDF structure, the review form's "
-         "timeout, and the Teams and Slack payloads.",
+         "timeout, the Teams and Slack payloads, and ledger noise.",
          size=10.5, color=INK)
 
     card(s, 7.33, 4.66, 5.42, 1.46, fill=GREEN_PALE, border=None, radius=0.03)
@@ -866,7 +866,7 @@ def slide_status(prs, n):
         "DECODE and LOOKUP shipment linking",
         "Excel, CSV and SQL ERP sources",
         "Rule toggling from the spreadsheet with no code change",
-        "Escalation capture in simulated and unattended modes",
+        "Escalation: review window answered via UI Automation",
         "Hash-chained audit trail, tamper detected at the exact line",
         "Excel report, PDF audit report, HTML dashboard, KPI export",
         "Teams and Slack payloads, and alert delivery to a capture server",
@@ -884,8 +884,8 @@ def slide_status(prs, n):
          "The project runs in UiPath Studio only. Queue mode uses a local work-queue file "
          "instead of an Orchestrator queue."),
         ("Live Etherscan key",
-         "API mode shares the parser the tested paths use, but no key is configured, so it has "
-         "not been run against the live chain."),
+         "API mode is tested over HTTP against a local Etherscan stand-in, but no real key is "
+         "configured, so it has not been run against the live chain."),
         ("Browser automation",
          "WEB mode parses the explorer's HTML. UIAutomation 25.10 removed the classic scraping "
          "activity and its replacement needs a recorded descriptor."),
@@ -993,9 +993,9 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--date", default="21 October 2026",
                     help="date printed on the cover")
-    ap.add_argument("--checks", default="19/19",
+    ap.add_argument("--checks", default="21/21",
                     help="acceptance-suite result for the verification slide")
-    ap.add_argument("--tests", default="11/11",
+    ap.add_argument("--tests", default="12/12",
                     help="UiPath test-case result for the verification slide")
     ap.add_argument("--out", default=None)
     args = ap.parse_args()

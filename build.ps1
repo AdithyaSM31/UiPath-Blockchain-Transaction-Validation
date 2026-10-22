@@ -69,7 +69,12 @@ if ($Analyze) {
 Write-Host "`n=== Configure ===" -ForegroundColor Cyan
 $localCfgPath = Join-Path $ProjectDir "Data\Config.local.json"
 $localCfg = @{ OutputRoot = $outputRoot }
-foreach ($k in $Set.Keys) { $localCfg[$k] = $Set[$k]; Write-Host "  override: $k = $($Set[$k])" -ForegroundColor DarkGray }
+foreach ($k in $Set.Keys) {
+    $localCfg[$k] = $Set[$k]
+    # Never echo a secret: API keys, passwords and tokens are shown masked.
+    $shown = if ($k -match 'Key|Password|Secret|Token' -and "$($Set[$k])" -ne "") { "********" } else { $Set[$k] }
+    Write-Host "  override: $k = $shown" -ForegroundColor DarkGray
+}
 $localCfg | ConvertTo-Json | Set-Content -Path $localCfgPath -Encoding utf8
 Write-Host "  output root: $outputRoot" -ForegroundColor DarkGray
 

@@ -25,12 +25,18 @@
                                     captured by a local stand-in server
         16. Queue mode            - Dispatcher payloads processed by the Performer entry point
         17. Failure handling      - a broken run is logged, screenshotted and re-thrown
-        18. UiPath test cases     - every TC*.xaml under Tests\
+        18. API mode              - Etherscan V2 request over HTTP to a local stand-in,
+                                    key redacted in the log, same verdict
+        19. UiPath test cases     - every TC*.xaml under Tests\
+        20. Review window         - PROMPT mode answered through UI Automation; the
+                                    decision lands in the audit chain (puts a window on
+                                    screen - skip with -SkipReviewWindow)
 
     Run:  powershell -ExecutionPolicy Bypass -File tools\run_all_checks.ps1
           powershell -ExecutionPolicy Bypass -File tools\run_all_checks.ps1 -StaticOnly
+          powershell -ExecutionPolicy Bypass -File tools\run_all_checks.ps1 -SkipReviewWindow
 #>
-param([switch]$StaticOnly)
+param([switch]$StaticOnly, [switch]$SkipReviewWindow)
 $ErrorActionPreference = "Stop"
 
 $Root       = Split-Path $PSScriptRoot -Parent
@@ -256,10 +262,46 @@ Add-Result "A failed run is logged, screenshotted and re-thrown" `
     ($broken -match "\[MAIN\] Run failed" -and $broken -match "Exit code [1-9]" -and $after -gt $before) `
     (Get-Line $broken "\[MAIN\] Run failed")
 
-# --- 18. UiPath test cases --------------------------------------------------
+# --- 18. API mode against a local Etherscan stand-in --------------------------------
+# The capture server answers GET /v2/api with the bundled Etherscan response, so the
+# HTTP Request, the URL the bot builds and the key handling are all exercised without
+# an API key or the internet.
+$apiCapture = Join-Path $env:TEMP ("blv-api-" + [guid]::NewGuid().ToString("N"))
+$apiFeed = Join-Path $ProjectDir "Data\Input\MockChain\etherscan_txlist_response.json"
+$apiServer = Start-Process powershell -PassThru -WindowStyle Hidden -ArgumentList `
+    "-ExecutionPolicy Bypass -File `"$(Join-Path $PSScriptRoot 'capture_server.ps1')`" -CaptureDir `"$apiCapture`" -TimeoutSeconds 600 -ApiResponseFile `"$apiFeed`""
+for ($i = 0; $i -lt 50 -and -not (Test-Path (Join-Path $apiCapture "ready")); $i++) { Start-Sleep -Milliseconds 200 }
+try {
+    $api = Invoke-Build @{
+        DataSourceMode = "API"; EtherscanBaseUrl = "http://127.0.0.1:18080/v2/api"
+        EtherscanApiKey = "LOCALTESTKEY"; ChainId = "137"
+    }
+}
+finally {
+    New-Item (Join-Path $apiCapture "stop") -ItemType File -Force | Out-Null
+    $apiServer.WaitForExit(15000) | Out-Null
+}
+$apiReq = Get-ChildItem $apiCapture -Filter "http_*_v2_api*.txt" -ErrorAction SilentlyContinue | Select-Object -First 1
+$apiLine = if ($apiReq) { (Get-Content $apiReq.FullName -TotalCount 1) } else { "" }
+$apiReqOk = $apiLine -match "chainid=137" -and $apiLine -match "module=account" -and $apiLine -match "action=txlist" `
+    -and $apiLine -match "apikey=LOCALTESTKEY"
+$apiOk = $apiReqOk -and ($api -match [regex]::Escape($Expected)) -and ($api -notmatch "LOCALTESTKEY")
+Add-Result "API mode: Etherscan V2 request, key redacted, same verdict" $apiOk `
+    ("request={0} verdict={1} key-in-log={2}" -f [bool]$apiReqOk, [bool]($api -match [regex]::Escape($Expected)), [bool]($api -match "LOCALTESTKEY"))
+
+# --- 19. UiPath test cases --------------------------------------------------
 $tests = & (Join-Path $PSScriptRoot "run_tests.ps1") 6>&1 2>&1 | Out-String
 $testLine = Get-Line $tests "test cases passed"
 Add-Result "UiPath test cases" ($tests -match "(\d+)/\1 test cases passed") $testLine
+
+# --- 20. Review window, answered through UI Automation ------------------------------
+if ($SkipReviewWindow) {
+    Add-Result "Review window answered; decision in the audit chain" $true "skipped (-SkipReviewWindow)"
+} else {
+    $rw = & (Join-Path $PSScriptRoot "review_window_test.ps1") 6>&1 2>&1 | Out-String
+    Add-Result "Review window answered; decision in the audit chain" `
+        ($rw -match "(\d+)/\1 review window checks passed") (Get-Line $rw "review window checks passed")
+}
 
 # Leave the project back in its default state.
 Invoke-Build | Out-Null

@@ -334,7 +334,7 @@ Then say plainly what the queue is, before you are asked:
 
 Give the three numbers off the slide, then:
 
-> "Eleven UiPath test cases in Studio's Test Explorer. Six drive one validation rule each
+> "Twelve UiPath test cases in Studio's Test Explorer. Six drive one validation rule each
 > against fixtures built inside the test, so a failing test points at exactly one rule. The
 > other five cover audit-chain tampering, field-mapping equivalence across two schemas, the
 > PDF's structure, the review form's timeout, and the Teams and Slack payloads."
@@ -420,9 +420,10 @@ keccak-256 function selectors, and correctly ABI-encoded call data in an authent
 response envelope. API mode against the live chain uses the same parser.
 
 **"Where are the tests?"**
-Eleven UiPath test cases in the Test tab. Six drive one rule each against hand-built fixtures;
+Twelve UiPath test cases in the Test tab. Six drive one rule each against hand-built fixtures;
 the others cover audit-chain tampering, field-mapping equivalence, PDF structure, the review
-form's timeout, and the Teams and Slack payloads. They cover edge cases the sample data does not:
+form's timeout, the Teams and Slack payloads, and ledger noise the mapping engine must set
+aside. They cover edge cases the sample data does not:
 drift exactly at the tolerance boundary, a checksummed address against a lower-case whitelist, the
 same hash on two shipments.
 
