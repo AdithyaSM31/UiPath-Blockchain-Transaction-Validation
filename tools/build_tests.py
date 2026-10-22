@@ -767,6 +767,68 @@ out_Problems = String.Join("; ", problems)
                      CONFIG_VARS + FIXTURE_VARS + (("x:String", "problems"),))
 
 
+
+# --------------------------------------------------------------------------
+# TC12 - ledger noise is set aside, not mapped and not fatal
+# --------------------------------------------------------------------------
+def tc12() -> str:
+    build = invoke_code("""
+' One genuine recordDispatch call from the real feed, and four records a real ledger
+' also carries: a value transfer, a call to some other function, call data that stops
+' short, and something that is not a record at all.
+Dim root As String = Directory.GetCurrentDirectory()
+Dim feed As JObject = JObject.Parse(File.ReadAllText(Path.Combine(root, "Data", "Input", "MockChain", "etherscan_txlist_response.json")))
+Dim good As JObject = CType(CType(feed("result"), JArray)(0).DeepClone(), JObject)
+
+Dim transfer As JObject = CType(good.DeepClone(), JObject)
+transfer("hash") = "0x02" : transfer("input") = "0x" : transfer("methodId") = "0x"
+
+' approve(address,uint256): a real selector, but not one of this contract's functions.
+Dim other As JObject = CType(good.DeepClone(), JObject)
+other("hash") = "0x03" : other("input") = "0x095ea7b3" & New String("0"c, 128) : other("methodId") = "0x095ea7b3"
+
+' A known selector (Delivered) whose call data ends after one word.
+Dim truncated As JObject = CType(good.DeepClone(), JObject)
+truncated("hash") = "0x04" : truncated("input") = "0xae7b1f50" & New String("0"c, 62) & "60" : truncated("methodId") = "0xae7b1f50"
+
+out_Records = New JArray(good, transfer, other, truncated, New JValue(42))
+""".strip(), [("Out", "out_Records", "njl:JArray", "records")],
+        name="Invoke Code - one real record and four kinds of noise")
+
+    def map_records(label: str, signatures: str, lookup: str) -> str:
+        args = [
+            ("In", "in_jRecords", "njl:JArray", "records"),
+            ("In", "in_dtMapping", "sd:DataTable", "dtMapping"),
+            ("In", "in_SourceMode", "x:String", '"MOCK"'),
+            ("In", "in_LookupMode", "x:Boolean", lookup),
+            ("Out", "out_dtChain", "sd:DataTable", "dtChain"),
+            ("Out", "out_Summary", "x:String", "summary"),
+        ]
+        if signatures:
+            args.insert(3, ("In", "in_dtSignatures", "sd:DataTable", signatures))
+        return invoke_workflow("Workflows\\01d_Apply_FieldMapping.xaml", args,
+                               name=f"Invoke 01d - {label}")
+
+    steps = (
+        load_config()
+        + build
+        + map_records("with the contract's function table", "dtSignatures", "False")
+        + verify("dtChain.Rows.Count = 1", "only the genuine logistics call is mapped")
+        + verify('Convert.ToString(dtChain.Rows(0)("ShipmentID")) = "SHP-1001"', "and it decodes correctly")
+        + verify('summary.Contains("1 skipped (no call data)")', "a value transfer is skipped")
+        + verify('summary.Contains("1 call(s) to other functions ignored")', "a call to another function is ignored")
+        + verify('summary.Contains("2 rejected")', "truncated call data and a non-object are rejected")
+        + map_records("in LOOKUP mode", "dtSignatures", "True")
+        + verify('summary.Contains("0 call(s) to other functions ignored")',
+                 "LOOKUP mode leaves the decision to the mapping file")
+        + map_records("without a function table", "", "False")
+        + verify('summary.Contains("0 call(s) to other functions ignored") AndAlso summary.Contains("3 rejected")',
+                 "without the table the unrelated call is rejected, not silently mapped"))
+
+    return test_case("TC12_Mapping_IgnoresLedgerNoise", "TC12 ledger noise is set aside", steps,
+                     CONFIG_VARS + (("njl:JArray", "records"), ("sd:DataTable", "dtChain"),
+                                    ("x:String", "summary")))
+
 # --------------------------------------------------------------------------
 GENERATORS = {
     "TC01_R1_TimestampCheck.xaml": tc01,
@@ -780,6 +842,7 @@ GENERATORS = {
     "TC09_PdfAuditReport.xaml": tc09,
     "TC10_ReviewForm_Timeout.xaml": tc10,
     "TC11_AlertWebhookPayloads.xaml": tc11,
+    "TC12_Mapping_IgnoresLedgerNoise.xaml": tc12,
 }
 
 

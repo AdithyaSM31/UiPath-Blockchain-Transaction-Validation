@@ -600,8 +600,30 @@ Dim convertValue As Func(Of String, String, String, Object) = Function(raw As St
     Throw New FormatException("unsupported transform " & tf)
 End Function
 
+' ---- Calls this bot does not own -------------------------------------------
+' A real ledger carries calls to functions that are not shipment milestones (an approve(),
+' an admin call, another contract's traffic). They are out of scope, not bad data, so they
+' are counted and set aside. LOOKUP mode skips this: there the mapping file, not the
+' selector, decides what a transaction is.
+Dim knownSel As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
+If Not in_LookupMode AndAlso in_dtSignatures IsNot Nothing Then
+    For Each sr As DataRow In in_dtSignatures.Rows
+        Dim ms As String = Convert.ToString(sr("MethodId")).Trim()
+        If ms <> "" Then knownSel.Add(ms)
+    Next
+End If
+Dim callField As String = ""
+For Each r As String() In rules
+    Dim ci As Integer = r(0).IndexOf(":"c)
+    If ci > 0 Then
+        callField = r(0).Substring(0, ci).Trim()
+        Exit For
+    End If
+Next
+
 ' ---- Map every record -------------------------------------------------------
 Dim noCallData As Integer = 0
+Dim foreignCalls As Integer = 0
 Dim rejected As Integer = 0
 Dim firstProblem As String = ""
 
@@ -611,6 +633,15 @@ For Each tok As JToken In in_Records
         rejected += 1
         If firstProblem = "" Then firstProblem = "a record is not a JSON object"
         Continue For
+    End If
+
+    If knownSel.Count > 0 AndAlso callField <> "" Then
+        Dim cdTok As JToken = rec.GetValue(callField, StringComparison.OrdinalIgnoreCase)
+        Dim cd As String = If(cdTok Is Nothing OrElse cdTok.Type = JTokenType.Null, "", cdTok.ToString().Trim())
+        If cd.Length >= 10 AndAlso Not knownSel.Contains(cd.Substring(0, 10)) Then
+            foreignCalls += 1
+            Continue For
+        End If
     End If
 
     Dim rw As DataRow = dt.NewRow()
@@ -664,8 +695,8 @@ Next
 
 out_dtChain = dt
 out_Rejected = rejected
-out_Summary = String.Format("{0} transaction(s) mapped with {1} field rule(s), {2} skipped (no call data), {3} rejected{4}", _
-    dt.Rows.Count, rules.Count, noCallData, rejected, If(firstProblem = "", "", " - first problem: " & firstProblem))
+out_Summary = String.Format("{0} transaction(s) mapped with {1} field rule(s), {2} skipped (no call data), {3} call(s) to other functions ignored, {4} rejected{5}", _
+    dt.Rows.Count, rules.Count, noCallData, foreignCalls, rejected, If(firstProblem = "", "", " - first problem: " & firstProblem))
 '''.strip()
 
 
@@ -676,6 +707,8 @@ def apply_field_mapping() -> str:
             ("In", "in_Records", "njl:JArray", "in_jRecords"),
             ("In", "in_dtMapping", "sd:DataTable", "in_dtMapping"),
             ("In", "in_SourceMode", "x:String", "in_SourceMode"),
+            ("In", "in_dtSignatures", "sd:DataTable", "in_dtSignatures"),
+            ("In", "in_LookupMode", "x:Boolean", "in_LookupMode"),
             ("Out", "out_dtChain", "sd:DataTable", "out_dtChain"),
             ("Out", "out_Rejected", "x:Int32", "rejected"),
             ("Out", "out_Summary", "x:String", "summary"),
@@ -683,14 +716,20 @@ def apply_field_mapping() -> str:
         + if_("rejected > 0",
               log('"[MAP-FIELDS] " & summary', level="Warn"),
               log('"[MAP-FIELDS] " & summary'),
-              name="If - any record rejected"),
+              name="If - any record rejected")
+        + assign("out_Summary", "summary", name="Assign - summary for the caller"),
         variables(("x:String", "summary"), ("x:Int32", "rejected")))
 
     return workflow("01d_Apply_FieldMapping", body, members=[
         ("in_jRecords", "InArgument(njl:JArray)"),
         ("in_dtMapping", "InArgument(sd:DataTable)"),
         ("in_SourceMode", "InArgument(x:String)"),
+        # Optional: the contract's function table. When given (and not in LOOKUP mode),
+        # calls to any other function are ignored rather than mapped.
+        ("in_dtSignatures", "InArgument(sd:DataTable)"),
+        ("in_LookupMode", "InArgument(x:Boolean)"),
         ("out_dtChain", "OutArgument(sd:DataTable)"),
+        ("out_Summary", "OutArgument(x:String)"),
     ])
 
 
@@ -727,6 +766,8 @@ def extract_blockchain() -> str:
             ("In", "in_jRecords", "njl:JArray", "jRecords"),
             ("In", "in_dtMapping", "sd:DataTable", "in_dtMapping"),
             ("In", "in_SourceMode", "x:String", 'Convert.ToString(in_Config("DataSourceMode"))'),
+            ("In", "in_dtSignatures", "sd:DataTable", "in_dtSignatures"),
+            ("In", "in_LookupMode", "x:Boolean", 'Convert.ToString(in_Config("MappingMode")) = "LOOKUP"'),
             ("Out", "out_dtChain", "sd:DataTable", "out_dtChain"),
         ], name="Invoke 01d - apply field mapping")
         + if_("out_dtChain Is Nothing OrElse out_dtChain.Rows.Count = 0",
@@ -738,6 +779,7 @@ def extract_blockchain() -> str:
     return workflow("01_Extract_Blockchain", body, members=[
         ("in_Config", f"InArgument({DICT_SO})"),
         ("in_dtMapping", "InArgument(sd:DataTable)"),
+        ("in_dtSignatures", "InArgument(sd:DataTable)"),
         ("out_dtChain", "OutArgument(sd:DataTable)"),
     ])
 
@@ -4828,6 +4870,7 @@ def main_workflow() -> str:
         + invoke_workflow("Workflows\\01_Extract_Blockchain.xaml", [
             ("In", "in_Config", DICT_SO, "Config"),
             ("In", "in_dtMapping", "sd:DataTable", "dtMapping"),
+            ("In", "in_dtSignatures", "sd:DataTable", "dtSignatures"),
             ("Out", "out_dtChain", "sd:DataTable", "dtChain"),
         ], name="Invoke 01 - Extract blockchain")
         + _mark("ExtractChain", "Config")
