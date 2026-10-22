@@ -9,8 +9,14 @@ Status key:
 | | Meaning |
 |---|---|
 | **Done** | Implemented and covered by at least one check below |
-| **Done – external** | Implemented; the final step needs a service this repository cannot hold credentials for (an Orchestrator tenant, an Etherscan API key, a real mail server or Teams channel). The code path is exercised locally by the named check. |
+| **Done – external** | Implemented; the final step needs a service this repository cannot hold credentials for (an Etherscan API key, a real mail server or Teams channel). The code path is exercised locally by the named check. |
 | **Partial** | Implemented differently from the slide's wording; the difference is stated |
+| **Descoped** | Deliberately out of scope for the final version, with the reason stated |
+
+**Scope change since Review 1:** the project runs in UiPath Studio only. No Orchestrator
+tenant is available to it, so everything that needed Orchestrator — deployment, time
+triggers, Orchestrator queues and monitoring — is descoped. The dispatcher / performer
+pattern is kept, using a local work-queue file instead of an Orchestrator queue.
 
 See [Verification status](#verification-status) at the end for which checks have been run
 on which machine.
@@ -32,7 +38,7 @@ on which machine.
 
 | Layer | Deck | Implementation | Status |
 |---|---|---|---|
-| 1 | Orchestrator: scheduling, triggers, monitoring, logs | Package + three entry points (`Main`, `Queue\Performer`, `12_Verify_AuditChain`); [ORCHESTRATOR_RUNBOOK.md](ORCHESTRATOR_RUNBOOK.md) | Done – external |
+| 1 | Orchestrator: scheduling, triggers, monitoring, logs | Studio only: three entry points run from Studio (`Main`, `Queue\Performer`, `12_Verify_AuditChain`); every phase writes a tagged log line, and each run is recorded in `RunHistory.csv` and the dashboard | **Descoped** — no Orchestrator tenant |
 | 2 | Data extraction, preprocessing & mapping, validation engine, reporting | `01*`/`02`, `01d`/`03`, `05`+`Rules`, `07`/`08`/`09`/`11`/`13` | Done |
 | 3 | Explorer/API, ERP/Excel/SQL, Excel & PDF reports, Email/Teams alerts | as above | Done |
 
@@ -69,10 +75,10 @@ on which machine.
 | PDF audit log with timestamps, bot ID, full results | `08_Report_PDF`: run metadata and bot identity, outcome, rules, findings with human decisions, every transaction, audit-chain evidence, attestation block | suite #7, TC09 | Done |
 | Send SMTP Mail / Send Outlook Mail with a summary table of failures | `09_Alert_Email`: `AlertMode` SMTP (SSL/STARTTLS or plain, report attachments) or OUTLOOK (send or draft); EML to disk by default | suite #15 (SMTP via local capture server) | Done – external (real mail server / Outlook profile) |
 | Optional dashboard: totals, pass %, fail %, top anomaly types → Power BI / Google Sheets via API | `11_Dashboard_Summary`: `dashboard_summary.json` + HTTP POST to `DashboardPushUrl` (Power BI push rows or full JSON for an Apps Script) | suite #15 | Done – external (dataset URL) |
-| Deploy to Orchestrator | `build.ps1 -SkipRun` package; runbook §1 | runbook | Done – external |
-| Time triggers (every 4 h / daily 06:00) | runbook §3.2 | — | Done – external |
-| Queue-based processing | `RunMode = DISPATCH` → `Queue\Dispatcher` (one item per shipment); `Queue\Performer` as its own process drains the queue and runs the full finalise pipeline | suite #16 (DRYRUN) | Done – external (live queue) |
-| Monitor & audit in Orchestrator | runbook §5; every phase logs a tagged line | — | Done – external |
+| Deploy to Orchestrator | — | — | **Descoped** — Studio only |
+| Time triggers (every 4 h / daily 06:00) | — | — | **Descoped** — needs Orchestrator |
+| Queue-based processing | `RunMode = DISPATCH` → `Queue\Dispatcher` writes a local work-queue file (one item per shipment); `Queue\Performer`, its own entry point, processes it and runs the full finalise pipeline | suite #16 | **Partial** — a local work-queue file instead of an Orchestrator queue |
+| Monitor & audit in Orchestrator | Studio's Output panel and execution log; every phase logs a tagged line; `RunHistory.csv` and the dashboard track every run | suite #6 | **Partial** — monitored in Studio, not Orchestrator |
 
 ## Slide 8 — Novelties
 
@@ -87,8 +93,8 @@ on which machine.
 
 | Component | Deck | Used |
 |---|---|---|
-| RPA platform | UiPath Studio / Community | Studio 25.10, Windows (.NET 8) project |
-| Orchestration | Orchestrator (Cloud) | Package, entry points, queue activities, runbook |
+| RPA platform | UiPath Studio / Community | Studio 25.10 and 26.0, Windows (.NET 8) project |
+| Orchestration | Orchestrator (Cloud) | Descoped — run from Studio; local work-queue file |
 | Blockchain source | Etherscan API / Explorer UI | Etherscan V2 API, explorer page, bundled mock feeds |
 | Logistics data | Excel / CSV / SQL | All three |
 | Rules config | Excel rule file | `Config.xlsx` |
@@ -106,7 +112,7 @@ on which machine.
 | 5–6 | Preprocessing and mapping layer | `01d`, `03`, `FieldMapping*` sheets, `TxShipmentMap.xlsx` |
 | 7–9 | Six-rule engine | `05`, `Rules\` |
 | 10–11 | Excel + PDF, audit logs, alerts, dashboard | `07`–`13` |
-| 12 | Orchestrator deployment, schedules, queues | `Queue\`, [ORCHESTRATOR_RUNBOOK.md](ORCHESTRATOR_RUNBOOK.md) |
+| 12 | Orchestrator deployment, schedules, queues | Descoped; `Queue\` dispatcher / performer over a local work-queue file |
 | 13 | Tests and refinement | `Tests\TC01–TC11`, `tools\run_all_checks.ps1` |
 | 14 | User guide, technical docs, handover notes | [USER_GUIDE.md](USER_GUIDE.md), [README.md](../README.md), this file |
 
@@ -115,10 +121,10 @@ on which machine.
 | Outcome | Evidence |
 |---|---|
 | 90%+ reduction in manual verification effort | [RESULTS.md](RESULTS.md) §1 — 48 transactions in ~22 s against an estimated 2–3 min each by hand |
-| Anomaly detection within minutes | A run completes in well under a minute; schedule it as frequently as needed (runbook §3.2) |
+| Anomaly detection within minutes | A run completes in well under a minute |
 | Audit-ready reports generated automatically | Excel, PDF, hash-chained CSV every run |
 | Configurable, reusable bot | Novelties 1 and 3 above |
-| Scalable via Orchestrator queues | Dispatcher/Performer, suite #16 |
+| Scalable via Orchestrator queues | Dispatcher/Performer split per shipment over a local work-queue file, suite #16 — the unit of work is ready for a queue, Orchestrator itself is descoped |
 
 Slides 10 and 13 (future scope) describe later work, not Review 1 commitments.
 

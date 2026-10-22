@@ -70,7 +70,16 @@ covers — set `$UiPathRobotExe` before dot-sourcing, or extend the candidate li
 
 **From Studio:** open `BlockchainLogisticsValidator\project.json`, run `Main.xaml`.
 
-**From a terminal** (packs and runs the same package Orchestrator would):
+**Queue-style processing, from Studio:**
+
+1. Set `RunMode` to `DISPATCH` in `Config.xlsx` and run `Main.xaml`. Instead of validating,
+   it writes `Reports\WorkQueue\queue_payloads_<run>.json`: one item per shipment.
+2. Open `Workflows\Queue\Performer.xaml` and run it (**Run File**). It reads the newest
+   work-queue file, validates each shipment, and produces the same audit log, reports and
+   dashboard as a batch run.
+3. Set `RunMode` back to `BATCH`.
+
+**From a terminal** (packs the project and runs it with the robot installed alongside Studio):
 
 ```bash
 powershell -ExecutionPolicy Bypass -File "build.ps1"
@@ -179,10 +188,8 @@ output root.
 
 | Setting | Default | Meaning |
 |---|---|---|
-| `RunMode` | BATCH | `DISPATCH` splits the run into one queue item per shipment |
-| `QueueMode` | DRYRUN | `ORCHESTRATOR` real queue · `DRYRUN` payload files on disk |
-| `QueueName` | BlockchainValidationQueue | Must match the Orchestrator queue |
-| `QueueDryRunFile` | blank | Performer in DRYRUN: payload file (blank = newest) |
+| `RunMode` | BATCH | `DISPATCH` writes a work-queue file, one item per shipment, to `Reports\WorkQueue` |
+| `QueueFile` | blank | Which work-queue file the Performer processes (blank = newest) |
 
 Any value outside its listed options stops the run at start-up with a message naming the setting.
 
@@ -295,7 +302,7 @@ release (without `InputDataHash`) is still verifiable; the bot sets such a file 
 | Job hangs with no output | `EscalationMode = PROMPT` on an unattended robot — set `AttendedMode = False` |
 | `The review window could not be shown` | No interactive desktop; use `AUTO_LOG`, or `ReviewUi = DIALOG` |
 | Webhook `HTTP 4xx` warning | The URL is wrong or expired; the payload is still saved in `Reports` |
-| `QueueMode is DRYRUN but no dispatcher payload file was found` | Run Main with `RunMode = DISPATCH` first |
+| `No work queue file was found` | Run Main with `RunMode = DISPATCH` first, then run the Performer |
 | `[VERIFY] INVALID` | The audit log was edited, truncated, or written by two robots at once — give each robot its own output root |
 
 ---
@@ -327,9 +334,11 @@ exactly as the robot would. It is the fastest way to catch a typo in a rarely us
 
 **Honest gaps** (also in the README):
 
-- Orchestrator queue activities, a live Etherscan key, a real mail server, Outlook sending and
-  real Teams/Slack channels need accounts this repository does not hold. Their code paths are
-  exercised locally (DRYRUN queue, capture server, payload files); the final hop is untested.
+- The project runs in UiPath Studio only; Orchestrator (scheduling, triggers, queues) is out
+  of scope. Queue-style processing uses a local work-queue file.
+- A live Etherscan key, a real mail server, Outlook sending and real Teams/Slack channels need
+  accounts this repository does not hold. Their code paths are exercised locally (capture
+  server, payload files); the final hop is untested.
 - `WEB` mode parses the explorer's HTML rather than recording a browser scrape.
 - The review form is built in the workflow rather than designed as a Studio `.uiform`.
 - The audit log is single-writer: parallel robots each need their own output root.

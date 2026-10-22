@@ -26,7 +26,7 @@ your own half.
 | 5.3 Chain swap | **Adithya** | It is an extraction-layer property |
 | 5.4 Tamper test | **Nitin** | His workflow, and the strongest moment |
 | 5.5 Tests | **Nitin** | He owns the test cases |
-| 6 · Scale / queues | **Adithya** | Orchestrator and packaging |
+| 6 · Scale / queues | **Adithya** | Dispatcher / Performer split |
 | 7 · Close | **Either** | Whoever is steadier under time pressure |
 
 Hand over explicitly — "Nitin will take the audit trail from here" — rather than drifting.
@@ -223,25 +223,21 @@ Open the **Test** tab in Studio and run all tests. Eleven go green.
 
 ## 6 · Scale (45s)
 
-```bash
-powershell -ExecutionPolicy Bypass -File "build.ps1" -Set @{ RunMode = "DISPATCH" }
-```
+In `Config.xlsx`, set **`RunMode` = `DISPATCH`** and run `Main.xaml` in Studio.
 
-> "For enterprise volume the same run splits into one Orchestrator queue item per shipment —
-> 48 transactions become 12 work items processed in parallel. Shipment, not transaction,
-> because three of the six rules compare events against each other."
+> "For volume, the same run splits into one work item per shipment — 48 transactions become
+> 12 items that can be processed independently. Shipment, not transaction, because three of
+> the six rules compare events against each other."
 
-Show `Data\Output\Reports\QueueDryRun\queue_payloads_*.json`, then process it the way the
-Orchestrator Performer would:
+Show `Data\Output\Reports\WorkQueue\queue_payloads_*.json`. Then open
+`Workflows\Queue\Performer.xaml` and click **Run File**.
 
-```bash
-powershell -ExecutionPolicy Bypass -File "build.ps1" -Entry "Workflows\Queue\Performer.xaml"
-```
+> "Same 40 / 1 / 7, same audit trail and reports — from the work items instead of one batch."
 
-> "Same 40 / 1 / 7, same audit trail and reports — from queue items instead of one batch."
+**Set `RunMode` back to `BATCH`** afterwards.
 
-Be straight about status: dispatch and perform are tested end to end in dry-run; the three
-Orchestrator queue activities themselves have not been run against a live tenant.
+The work queue is a local file; the project runs in Studio only. If asked why, see "Why
+isn't it deployed to Orchestrator?" below.
 
 ---
 
@@ -282,13 +278,21 @@ is a perfectly valid on-chain transaction.
 
 **"Why RPA instead of a Python script?"**
 The rules, thresholds and whitelist are owned by logistics operations, not developers. A
-spreadsheet plus a scheduled robot puts change control where the domain knowledge is. It also
-inherits Orchestrator's scheduling, queueing, retry and audit logging for free.
+spreadsheet plus a robot puts change control where the domain knowledge is. And the same
+workflows can later be scheduled and queued by Orchestrator without being rewritten.
 
 **"Why hash the audit log when it's already on a blockchain?"**
 The *transactions* are on-chain. The *validation* isn't — it happens off-chain, in the bot. The
 chained log is what makes the verification step itself evidential rather than just a report
 somebody could edit.
+
+**"Why isn't it deployed to Orchestrator?"**
+Our Orchestrator access ended before the final review, so we scoped the final version to
+UiPath Studio. We kept the queue design: the run still splits into one work item per
+shipment, and the Performer processes them as its own entry point. The only difference is
+that the queue is a local file instead of an Orchestrator queue. Moving to Orchestrator
+means swapping that file for *Add Queue Item* and *Get Transaction Item*; the validation
+itself would not change.
 
 **"Is the data real?"**
 The transactions are synthetic, but not fake in shape: genuine EIP-55 checksummed addresses,
@@ -305,9 +309,9 @@ them found a real bug while being written — R4 assumed a hash was at least 12 
 and crashed on a malformed one.
 
 **"What doesn't work?"**
-Nothing is stubbed, but a few final hops need accounts we don't hold: a live Orchestrator
-queue (dispatch and perform are tested in dry-run), a live Etherscan key, and real
-mail/Teams/Slack endpoints (delivery is tested against a local capture server). `WEB` mode
+Nothing is stubbed, but a few final hops need accounts we don't hold: a live Etherscan key,
+and real mail/Teams/Slack endpoints (delivery is tested against a local capture server).
+Orchestrator is out of scope; the project runs in Studio. `WEB` mode
 parses the explorer's HTML rather than driving a browser, because UIAutomation 25.10 dropped
 the classic scraping activity and the browser extension isn't installed. And the review
 form is built in the workflow rather than designed as a Studio `.uiform`, because those can

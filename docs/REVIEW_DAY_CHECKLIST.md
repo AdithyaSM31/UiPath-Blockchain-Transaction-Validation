@@ -9,6 +9,9 @@ the demo walkthrough is in [DEMO_SCRIPT.md](DEMO_SCRIPT.md). This file is just t
 
 ## The night before
 
+- [ ] **Check UiPath Studio is licensed** on the demo laptop: open Studio, signed in, and
+      no "unlicensed" banner. Without a licence the robot will not run anything.
+
 - [ ] **Run the acceptance suite.** About fifteen minutes.
 
       powershell -ExecutionPolicy Bypass -File "tools\run_all_checks.ps1"
@@ -118,6 +121,4 @@ this morning" costs you nothing. Never debug live in front of an examiner.
 
 - [ ] Confirm `Config.xlsx` is back to `EscalationMode = SIMULATE` and all six rules enabled,
       so the next person to clone the repository gets the documented default run.
-- [ ] If the tenant is still live, capture the Orchestrator screenshots listed in
-      [ORCHESTRATOR_RUNBOOK.md §6](ORCHESTRATOR_RUNBOOK.md) — Community tenants expire, so do
-      this before the deadline rather than on the day.
+- [ ] Confirm `RunMode` is back to `BATCH` if you showed the queue split.

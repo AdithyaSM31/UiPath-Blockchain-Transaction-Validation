@@ -12,7 +12,6 @@ submission.
 |---|---|
 | [docs/USER_GUIDE.md](docs/USER_GUIDE.md) | Running and configuring the bot; handover notes |
 | [docs/DECK_TRACEABILITY.md](docs/DECK_TRACEABILITY.md) | Every Review 1 commitment → where it is implemented → how it is checked |
-| [docs/ORCHESTRATOR_RUNBOOK.md](docs/ORCHESTRATOR_RUNBOOK.md) | Publishing, triggers, queues, monitoring |
 | [docs/RESULTS.md](docs/RESULTS.md) | Measured results |
 | [docs/SEEDED_ANOMALIES.md](docs/SEEDED_ANOMALIES.md) | Which record breaks which rule |
 | [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md) | Review walkthrough |
@@ -25,6 +24,10 @@ submission.
 
 Open `BlockchainLogisticsValidator\project.json` in UiPath Studio and run `Main.xaml`.
 That's it — the default configuration runs entirely offline against bundled sample data.
+
+**The project needs UiPath Studio and nothing else.** There is no Orchestrator dependency: no
+queues, assets or published processes. Queue-style processing uses a local work-queue file,
+and every entry point is run from Studio.
 Verified on Studio 25.10.15 and 26.0.204; on 26.x, decline the project-upgrade prompt unless
 you mean to re-pin every dependency.
 
@@ -110,7 +113,7 @@ BlockchainLogisticsValidator/     the UiPath project - open this in Studio
 │   ├── 12_Verify_AuditChain      standalone integrity check (also an entry point)
 │   ├── 13_Report_Dashboard       self-contained HTML dashboard
 │   ├── 14_Finalise_Run           06 -> 13, shared by batch and queue mode
-│   └── Queue/Dispatcher,Performer  Orchestrator queue mode (Performer is an entry point)
+│   └── Queue/Dispatcher,Performer  work-queue mode via a local file (Performer is an entry point)
 ├── Tests/TC01..TC11              UiPath test cases
 ├── Data/
 │   ├── Config.xlsx               the control panel
@@ -118,7 +121,7 @@ BlockchainLogisticsValidator/     the UiPath project - open this in Studio
 │   └── Output/                   reports, audit logs, screenshots (generated)
 build.ps1                         pack + analyze + run headlessly
 tools/                            generators, oracle, compile check, demos, acceptance suite
-docs/                             user guide, traceability, runbook, results, demo script
+docs/                             user guide, traceability, results, demo script
 ```
 
 ---
@@ -130,7 +133,7 @@ setting is documented in [docs/USER_GUIDE.md §4](docs/USER_GUIDE.md#4-configxls
 
 | Sheet | What it controls |
 |---|---|
-| `Settings` | Sources (chain, ERP), mapping, escalation, alert channels, dashboard push, queue, output |
+| `Settings` | Sources (chain, ERP), mapping, escalation, alert channels, dashboard push, work queue, output |
 | `ValidationRules` | Which rules run, their severity, thresholds and fail action |
 | `ApprovedWallets` | The partner whitelist R3 checks against |
 | `FieldMapping` | Etherscan record field → canonical field, with the transform applied |
@@ -150,8 +153,8 @@ The switches worth knowing:
   is false, so an unattended job can never hang.
 - **`AlertMode`** — `EML` writes the message to disk (default), `SMTP` or `OUTLOOK` sends it.
   `TeamsWebhookUrl` / `SlackWebhookUrl` post to chat alongside.
-- **`RunMode`** — `BATCH` validates everything in one job; `DISPATCH` splits it into one
-  Orchestrator queue item per shipment.
+- **`RunMode`** — `BATCH` validates everything in one run; `DISPATCH` writes a work-queue
+  file with one item per shipment, which `Workflows\Queue\Performer.xaml` then processes.
 
 `Data\Config.local.json` overrides any `Settings` value and is **not** committed — real API
 keys, SMTP passwords and webhook URLs belong there. `build.ps1 -Set @{...}` writes it.
@@ -252,11 +255,12 @@ assertion failed, so a regression is also visible as a non-zero exit code.
 
 ## Known gaps
 
-- **Services this repository holds no credentials for.** Orchestrator queue activities
-  against a live queue, a live Etherscan API key, a real SMTP server or Outlook profile, and
-  real Teams/Slack channels. Each path is exercised locally — DRYRUN queue payloads through
-  the Performer, alerts through `tools\capture_server.ps1` — but the final hop is untested.
-  See [docs/ORCHESTRATOR_RUNBOOK.md](docs/ORCHESTRATOR_RUNBOOK.md).
+- **No Orchestrator.** The project is scoped to UiPath Studio. Scheduling, triggers and
+  Orchestrator queues are out of scope; the dispatcher/performer split is kept, using a local
+  work-queue file instead of an Orchestrator queue.
+- **Services this repository holds no credentials for.** A live Etherscan API key, a real
+  SMTP server or Outlook profile, and real Teams/Slack channels. Each path is exercised
+  locally — alerts through `tools\capture_server.ps1` — but the final hop is untested.
 - **WEB mode parses the explorer's HTML rather than driving a browser.** UIAutomation 25.10
   removed the classic `ExtractStructuredData`, its replacement needs recorder-generated
   descriptors, and the UiPath browser extension is not installed on the build machine. See the

@@ -213,7 +213,7 @@ def slide_whats_new(prs, n):
         ("Teams and Slack alerts", "09b_Alert_Webhooks",
          "An Adaptive Card and a Block Kit message alongside the e-mail."),
         ("Standalone Performer", "Queue\\Performer.xaml",
-         "Its own entry point: drains the queue, then runs the same finalise pipeline as a batch run."),
+         "Its own entry point: works through the work queue, then runs the same finalise pipeline as a batch run."),
     ]
     y = 1.56
     for i, (title, where, why) in enumerate(rows, 1):
@@ -718,7 +718,7 @@ def slide_evidence(prs, n):
          "PrevHash and EntryHash."),
         ("Alert_*.eml / _teams.json / _slack.json", "New",
          "The e-mail, the Teams Adaptive Card and the Slack Block Kit message, written to disk "
-         "so delivery is testable without a tenant."),
+         "so delivery is testable without a real Teams or Slack channel."),
         ("dashboard_summary.json", "KPI export",
          "Findings and counters for a Power BI or Google Sheets push."),
     ]
@@ -742,12 +742,12 @@ def slide_evidence(prs, n):
 
 def slide_queue(prs, n):
     s = add_slide(prs)
-    header(s, "SAME PIPELINE, ENTERPRISE VOLUME", "Queue mode and the Performer")
+    header(s, "SAME PIPELINE, SPLIT PER SHIPMENT", "Queue mode and the Performer")
 
     card(s, L, 1.6, 5.94, 2.4)
     text(s, L + 0.24, 1.78, 5.5, 0.3, "How a run splits", size=15, bold=True, color=PURPLE)
     for j, (a, b) in enumerate([("BATCH", "One job validates all 48 transactions."),
-                                ("DISPATCH", "One Orchestrator queue item per shipment: 48 → 12.")]):
+                                ("DISPATCH", "One work item per shipment, in a local queue file: 48 → 12.")]):
         y = 2.2 + j * 0.74
         pill(s, L + 0.24, y, 1.3, 0.3, a, fill=PURPLE if j == 0 else PURPLE_MID, color=WHITE)
         text(s, L + 1.7, y + 0.02, 4.0, 0.6, b, size=11, color=INK)
@@ -768,27 +768,26 @@ def slide_queue(prs, n):
     text(s, L + 0.26, 4.34, 11.5, 0.3, "The Performer is its own entry point", size=13.5,
          bold=True, color=PURPLE)
     text(s, L + 0.26, 4.68, 11.5, 0.66,
-         "It drains the queue in one job and then calls 14_Finalise_Run - the same finalise "
+         "Run from Studio, it works through the queue and then calls 14_Finalise_Run - the same finalise "
          "pipeline a batch run uses. So queue mode produces the same audit trail, the same "
          "Excel and PDF reports and the same dashboard, rather than a second, divergent path "
          "that would need its own evidence.",
          size=11.5, color=INK)
 
     card(s, L, 5.62, W, 1.18, fill=AMBER_PALE, border=None, radius=0.03)
-    text(s, L + 0.26, 5.8, 11.5, 0.3, "Stated plainly: this is the one untested hop",
+    text(s, L + 0.26, 5.8, 11.5, 0.3, "Runs in UiPath Studio - Orchestrator is out of scope",
          size=13, bold=True, color=AMBER)
     text(s, L + 0.26, 6.14, 11.5, 0.56,
-         "Dispatcher and Performer are exercised end to end in DRYRUN - 48 transactions "
-         "become 12 payloads, and the Performer processes them and produces a full evidence "
-         "pack. Add Queue Item, Get Transaction Item and Set Transaction Status have never "
-         "run against a live Orchestrator queue.",
+         "The work queue is a local file. Dispatcher and Performer are verified end to end: "
+         "48 transactions become 12 work items, and the Performer turns them into the same "
+         "evidence pack as a batch run. Moving to an Orchestrator queue would swap that file "
+         "for Add Queue Item and Get Transaction Item - the validation would not change.",
          size=11.5, color=AMBER_DEEP)
-    notes(s, "Adithya leads. Be straight about the status - dispatch and perform are tested "
-             "end to end in dry-run; the three queue activities themselves have not run "
-             "against a live tenant. Knowing precisely which hop is untested reads as "
-             "competence. If there is time, run build.ps1 -Set @{RunMode='DISPATCH'} and then "
-             "the Performer entry point, and show that the counts and the audit trail match a "
-             "batch run.")
+    notes(s, "Adithya leads. Say plainly that the queue is a local file and the project runs "
+             "in Studio only - our Orchestrator access ended before the final review. The "
+             "split per shipment is the design point. If there is time: set RunMode = DISPATCH "
+             "in Config.xlsx, run Main, then open Workflows\\Queue\\Performer.xaml and Run "
+             "File, and show that the counts and the audit trail match a batch run.")
     footer(s, n)
 
 
@@ -815,8 +814,8 @@ def slide_verification(prs, n, checks, tests, analyzer="0"):
         "Excel, PDF, dashboard and KPI artefacts produced",
         "An edited audit log is detected at the right line",
         "All three extraction modes agree",
-        "Dispatch splits 48 transactions into 12 queue items",
-        "The Performer drains a queue and finalises the run",
+        "Dispatch splits 48 transactions into 12 work items",
+        "The Performer works through the queue and finalises the run",
         "Alerts delivered to a local SMTP and webhook capture server",
     ]):
         y = 3.62 + j * 0.25
@@ -871,7 +870,7 @@ def slide_status(prs, n):
         "Hash-chained audit trail, tamper detected at the exact line",
         "Excel report, PDF audit report, HTML dashboard, KPI export",
         "Teams and Slack payloads, and alert delivery to a capture server",
-        "Dispatcher and Performer end to end in dry run",
+        "Dispatcher and Performer end to end through a work queue",
     ]
     for j, line in enumerate(done):
         y = 2.26 + j * 0.3
@@ -881,9 +880,9 @@ def slide_status(prs, n):
     card(s, 7.33, 1.6, 5.42, 4.5)
     pill(s, 7.57, 1.78, 1.9, 0.32, "NOT YET EXECUTED", fill=AMBER, color=WHITE)
     gaps = [
-        ("Live Orchestrator queue",
-         "Dispatch and perform are verified in dry run; the three queue activities have not "
-         "run against a live tenant."),
+        ("Orchestrator - out of scope",
+         "The project runs in UiPath Studio only. Queue mode uses a local work-queue file "
+         "instead of an Orchestrator queue."),
         ("Live Etherscan key",
          "API mode shares the parser the tested paths use, but no key is configured, so it has "
          "not been run against the live chain."),
@@ -902,12 +901,13 @@ def slide_status(prs, n):
 
     card(s, L, 6.26, W, 0.56, fill=WHITE)
     text(s, L + 0.26, 6.42, 11.5, 0.3,
-         "Nothing is stubbed. Every gap above is a hop into a system this project holds no "
-         "credentials for - and each one is exercised locally right up to that hop.",
+         "Nothing is stubbed. Each path above is exercised locally right up to the hop "
+         "this project has no account or tool for.",
          size=11.5, bold=True, color=PURPLE)
     notes(s, "Do not skip this slide. Answer plainly if asked - waffling reads as not knowing. "
-             "The honest summary is that the gaps are all credentials, not capability: a live "
-             "queue, a live API key, the browser extension, and real mail and chat endpoints. "
+             "The honest summary: Orchestrator is out of scope because the project runs in "
+             "Studio only, and the other gaps are accounts or tools, not capability - a live "
+             "API key, the browser extension, and real mail and chat endpoints. "
              "Each path is exercised locally up to the final hop. This is also the slide that "
              "shortened most since Review 2, because the PDF, webhooks, ledger export and "
              "Performer all moved from the right column to the left.")
@@ -925,9 +925,9 @@ def slide_close(prs, n):
 
     header(s, "FUTURE SCOPE", "Where this goes next", dark=True)
     future = [
-        ("Close the queue loop",
-         "Run Dispatcher and Performer against a live Orchestrator queue and measure throughput "
-         "under parallel workers."),
+        ("Deploy to Orchestrator",
+         "Publish the package, schedule it with time triggers, and swap the local work-queue "
+         "file for an Orchestrator queue with parallel workers."),
         ("ML-based anomaly detection",
          "Use UiPath AI Center on historical transactions to catch fraud patterns no fixed rule "
          "anticipates."),

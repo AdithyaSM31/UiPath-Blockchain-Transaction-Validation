@@ -255,7 +255,7 @@ Restored from backup, verification returns to VALID.
 | `dashboard.html` | ~9 KB | Self-contained visual dashboard: KPIs, rules, findings, run history |
 | `dashboard_summary.json` | ~3 KB | KPIs and findings for Power BI / Google Sheets |
 | `Alert_<runid>.eml` | ~5 KB | HTML alert with the failure summary table |
-| `QueueDryRun/queue_payloads_<runid>.json` | ~40 KB | 12 per-shipment queue payloads (dispatch mode) |
+| `WorkQueue/queue_payloads_<runid>.json` | ~60 KB | Work queue: 12 per-shipment items (dispatch mode) |
 
 ---
 
@@ -266,9 +266,9 @@ Stated plainly so the limits are not overclaimed:
 - **Live blockchain data.** All figures are from `MOCK` and `WEB`, both of which read bundled
   data. `API` mode is implemented and shares the same parser, but has not been run against
   Etherscan (no API key configured).
-- **Orchestrator queues.** `Dispatcher` is verified in `DRYRUN` (48 → 12 payloads).
-  `Add Queue Item`, `Get Transaction Item` and `Set Transaction Status` have never executed
-  against a live tenant. The package itself *is* published to Orchestrator.
+- **No Orchestrator.** The project is scoped to UiPath Studio. The dispatch / perform split
+  is verified end to end through a local work-queue file (48 transactions → 12 items → the
+  same verdict as a batch run); Orchestrator scheduling, triggers and queues are out of scope.
 - **Web extraction is HTML parsing, not browser automation.** `WEB` mode fetches the
   explorer page and parses its transaction table. It does not drive a browser with UiPath
   Data Scraping: UIAutomation 25.10 removed the classic `ExtractStructuredData`, its
@@ -283,6 +283,6 @@ Stated plainly so the limits are not overclaimed:
   chain. Each robot needs its own audit folder.
 
 > The limits above were written for the original release. Since then the Performer path is
-> exercised in DRYRUN end to end (suite check #16) and alert delivery against a local capture
-> server (suite check #15); the live Orchestrator queue, a live Etherscan key and real
-> mail/chat endpoints remain outside what the repository can test.
+> exercised end to end through the local work-queue file (suite check #16) and alert delivery
+> against a local capture server (suite check #15); a live Etherscan key and real mail/chat
+> endpoints remain outside what the repository can test.

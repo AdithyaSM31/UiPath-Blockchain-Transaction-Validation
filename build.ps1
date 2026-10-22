@@ -8,7 +8,7 @@
         .\build.ps1 -LogTail 40     # show more of the execution log
 
     Windows (.NET 8) UiPath projects cannot be run from a loose .xaml by the Robot CLI,
-    so this packs to a .nupkg first and executes that. Same path Orchestrator uses.
+    so this packs to a .nupkg first and executes that with the local robot.
 #>
 param(
     [string]$Entry    = "",

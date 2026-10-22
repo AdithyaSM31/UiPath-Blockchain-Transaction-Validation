@@ -3,7 +3,7 @@
 
     UiPath compiles an Invoke Code activity's VB source only when the activity executes,
     so a typo in a branch that a test run never reaches (SMTP delivery, the reviewer
-    window, Orchestrator queue mode) would otherwise stay hidden until the day it matters.
+    window, Outlook delivery) would otherwise stay hidden until the day it matters.
     `UiRobot pack` already compiles every XAML expression; this script closes the other
     half by compiling each Invoke Code body the way the robot does:
 

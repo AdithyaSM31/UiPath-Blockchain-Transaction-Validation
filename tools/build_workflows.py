@@ -47,7 +47,6 @@ HITL_LABEL_EXPR = (
     ' "Finding:" & vbCrLf & Convert.ToString(CurrentRow("FailureReasons"))'
 )
 
-QUEUE_NAME_EXPR = 'Convert.ToString(in_Config("QueueName"))'
 EXPLORER_URL_EXPR = 'Convert.ToString(in_Config("ExplorerPageUrl"))'
 
 HITL_OPTIONS_EXPR = (
@@ -105,8 +104,6 @@ defaults("DashboardPushFormat") = "POWERBI"
 defaults("RunHistoryFile") = "RunHistory.csv"
 defaults("AuditLogFile") = "ValidationAuditLog.csv"
 defaults("RunMode") = "BATCH"
-defaults("QueueMode") = "DRYRUN"
-defaults("QueueName") = "BlockchainValidationQueue"
 defaults("LogLevel") = "Info"
 For Each kv As KeyValuePair(Of String, String) In defaults
     If Not d.ContainsKey(kv.Key) OrElse Convert.ToString(d(kv.Key)).Trim() = "" Then d(kv.Key) = kv.Value
@@ -116,7 +113,7 @@ Next
 ' Paths are stored relative in Config.xlsx so the project stays portable; at
 ' runtime the working directory is the deployed package's content folder.
 Dim pathKeys() As String = {"MockChainFile", "LogisticsFile", "TxShipmentMapFile", _
-                            "ShipmentsCsvFile", "ShipmentEventsCsvFile", "QueueDryRunFile"}
+                            "ShipmentsCsvFile", "ShipmentEventsCsvFile", "QueueFile"}
 For Each key As String In pathKeys
     If d.ContainsKey(key) Then
         Dim v As String = Convert.ToString(d(key)).Trim()
@@ -200,7 +197,6 @@ allowed("ReviewUi") = New String() {"WINDOW", "DIALOG"}
 allowed("AlertMode") = New String() {"EML", "SMTP", "OUTLOOK"}
 allowed("DashboardPushFormat") = New String() {"POWERBI", "JSON"}
 allowed("RunMode") = New String() {"BATCH", "DISPATCH"}
-allowed("QueueMode") = New String() {"DRYRUN", "ORCHESTRATOR"}
 allowed("LogLevel") = New String() {"INFO", "TRACE"}
 For Each kv As KeyValuePair(Of String, String()) In allowed
     Dim v As String = Convert.ToString(d(kv.Key)).Trim().ToUpperInvariant()
@@ -2674,7 +2670,7 @@ End If
 # ==========================================================================
 # Written with ClosedXML rather than Excel activities: UiPath exposes no conditional-
 # formatting activity, and ClosedXML needs no Excel process, so the report is produced
-# identically in an unattended Orchestrator run on a machine with no Office installed.
+# identically on a machine with no Office installed.
 def report_excel() -> str:
     code = r'''
 Dim folder As String = Convert.ToString(in_Config("ReportsFolder"))
@@ -3914,8 +3910,8 @@ def alert_webhooks() -> str:
 # all. A shipment is the smallest unit that keeps every rule meaningful, and none of the
 # six rules reach across shipments, so nothing is lost by splitting there.
 #
-# QueueMode = DRYRUN writes the payloads to disk instead of Orchestrator, so the
-# grouping and serialisation can be tested without a tenant.
+# The work queue is a local JSON file - one entry per shipment - so the whole
+# dispatch / perform split runs from UiPath Studio with no Orchestrator.
 def queue_dispatcher() -> str:
     code = r'''
 ' Group the joined rows by shipment and serialise each group into one queue payload.
@@ -3958,9 +3954,9 @@ out_Summary = String.Format("{0} shipment payload(s) prepared from {1} transacti
     dt.Rows.Count, in_dtJoined.Rows.Count)
 '''.strip()
 
-    dryrun_code = r'''
-' Write what would have been queued, so the split can be inspected without a tenant.
-Dim folder As String = Path.Combine(Convert.ToString(in_Config("ReportsFolder")), "QueueDryRun")
+    queue_file_code = r'''
+' Write the work queue: one entry per shipment, for the Performer to process.
+Dim folder As String = Path.Combine(Convert.ToString(in_Config("ReportsFolder")), "WorkQueue")
 Directory.CreateDirectory(folder)
 Dim arr As New JArray()
 For Each r As DataRow In in_dtPayloads.Rows
@@ -3973,37 +3969,8 @@ For Each r As DataRow In in_dtPayloads.Rows
 Next
 Dim outFile As String = Path.Combine(folder, "queue_payloads_" & Convert.ToString(in_Config("RunId")) & ".json")
 File.WriteAllText(outFile, arr.ToString(Newtonsoft.Json.Formatting.Indented), Encoding.UTF8)
-out_Summary = String.Format("dry run: {0} payload(s) written to {1}", arr.Count, Path.GetFileName(outFile))
+out_Summary = String.Format("work queue: {0} item(s) written to {1}", arr.Count, Path.GetFileName(outFile))
 '''.strip()
-
-    # ItemInformation is a KEYED dictionary of arguments, not one argument holding a
-    # dictionary - binding a prebuilt Dictionary fails with "Missing key value on
-    # 'InArgument' object". Listing the fields individually also makes them visible in
-    # the designer and in Orchestrator's queue-item view.
-    item_fields = [
-        ("ShipmentID", 'Convert.ToString(CurrentPayload("ShipmentID"))'),
-        ("EventCount", 'Convert.ToString(CurrentPayload("EventCount"))'),
-        ("EventsJson", 'Convert.ToString(CurrentPayload("EventsJson"))'),
-        ("RunId", 'Convert.ToString(in_Config("RunId"))'),
-    ]
-    fields_xml = "".join(
-        f'<InArgument x:TypeArguments="x:String" x:Key="{k}">{vb(e)}</InArgument>'
-        for k, e in item_fields)
-
-    ref_expr = 'Convert.ToString(CurrentPayload("Reference"))'
-
-    add_item = sequence(
-        "Enqueue this shipment",
-        # The property is QueueType, not QueueName - its DISPLAY name is "Queue name",
-        # which is why every obvious guess fails with "unknown member".
-        f'<ui:AddQueueItem DisplayName="{lit("Add Queue Item")}" '
-        f'QueueType="{vb(QUEUE_NAME_EXPR)}" '
-        f'Reference="{vb(ref_expr)}">'
-        f'<ui:AddQueueItem.ItemInformation>'
-        f'<scg:Dictionary x:TypeArguments="x:String, InArgument">{fields_xml}</scg:Dictionary>'
-        f'</ui:AddQueueItem.ItemInformation></ui:AddQueueItem>')
-
-    build_info = ""
 
     body = sequence(
         "Dispatcher - split the run into per-shipment queue items",
@@ -4014,25 +3981,15 @@ out_Summary = String.Format("dry run: {0} payload(s) written to {1}", arr.Count,
             ("Out", "out_Summary", "x:String", "summary"),
         ], name="Invoke Code - group transactions by shipment")
         + log('"[DISPATCH] " & summary')
-        + if_('Convert.ToString(in_Config("QueueMode")).Trim().ToUpperInvariant() = "ORCHESTRATOR"',
-              sequence("Push to Orchestrator",
-                       for_each_row("dtPayloads",
-                                    sequence("Queue one shipment", build_info + add_item),
-                                    row_var="CurrentPayload",
-                                    name="For Each Row - shipment payloads")
-                       + log('"[DISPATCH] " & dtPayloads.Rows.Count.ToString() & " item(s) added to BlockchainValidationQueue"')),
-              sequence("Dry run",
-                       invoke_code(dryrun_code, [
-                           ("In", "in_Config", DICT_SO, "in_Config"),
-                           ("In", "in_dtPayloads", "sd:DataTable", "dtPayloads"),
-                           ("Out", "out_Summary", "x:String", "summary"),
-                       ], name="Invoke Code - write payloads to disk")
-                       + log('"[DISPATCH] " & summary')),
-              name="If - Orchestrator or dry run")
+        + invoke_code(queue_file_code, [
+            ("In", "in_Config", DICT_SO, "in_Config"),
+            ("In", "in_dtPayloads", "sd:DataTable", "dtPayloads"),
+            ("Out", "out_Summary", "x:String", "summary"),
+        ], name="Invoke Code - write the work queue file")
+        + log('"[DISPATCH] " & summary')
         + assign("out_ItemsQueued", "dtPayloads.Rows.Count", type_ref="x:Int32",
                  name="Assign - items queued"),
-        variables(("sd:DataTable", "dtPayloads"), ("x:String", "summary"),
-                  (DICT_SO, "itemInfo")))
+        variables(("sd:DataTable", "dtPayloads"), ("x:String", "summary")))
 
     return workflow("Dispatcher", body, members=[
         ("in_Config", f"InArgument({DICT_SO})"),
@@ -4097,20 +4054,18 @@ For Each r As DataRow In in_dtResults.Rows
 Next
 """.strip()
 
-DRYRUN_PAYLOADS_CODE = r"""
-' DRYRUN: read the payloads the Dispatcher wrote instead of an Orchestrator queue, so
-' the Performer's whole path - rehydrate, validate, audit, report - can be exercised
-' without a tenant. QueueDryRunFile picks a file; blank takes the newest.
-Dim payloadFile As String = If(in_Config.ContainsKey("QueueDryRunFile"), Convert.ToString(in_Config("QueueDryRunFile")).Trim(), "")
+WORK_QUEUE_CODE = r"""
+' Read the work queue the Dispatcher wrote. QueueFile picks a file; blank takes the newest.
+Dim payloadFile As String = If(in_Config.ContainsKey("QueueFile"), Convert.ToString(in_Config("QueueFile")).Trim(), "")
 If payloadFile = "" Then
-    Dim folder As String = Path.Combine(Convert.ToString(in_Config("ReportsFolder")), "QueueDryRun")
+    Dim folder As String = Path.Combine(Convert.ToString(in_Config("ReportsFolder")), "WorkQueue")
     If Directory.Exists(folder) Then
         Dim newest As FileInfo = New DirectoryInfo(folder).GetFiles("queue_payloads_*.json").OrderByDescending(Function(f) f.LastWriteTimeUtc).FirstOrDefault()
         If newest IsNot Nothing Then payloadFile = newest.FullName
     End If
 End If
 If payloadFile = "" OrElse Not IO.File.Exists(payloadFile) Then
-    Throw New IO.FileNotFoundException("QueueMode is DRYRUN but no dispatcher payload file was found. Run Main with RunMode = DISPATCH first, or set QueueDryRunFile.")
+    Throw New IO.FileNotFoundException("No work queue file was found. Run Main with RunMode = DISPATCH first, or set QueueFile.")
 End If
 Dim dt As New DataTable("QueuePayloads")
 dt.Columns.Add("Reference", GetType(String))
@@ -4126,11 +4081,11 @@ out_Summary = String.Format("{0} payload(s) read from {1}", dt.Rows.Count, Path.
 
 def queue_performer() -> str:
     """
-    The Performer is a standalone Orchestrator process (its own entry point). It loads the
-    configuration itself when started without arguments, drains the queue in one job, and
-    then runs the same finalise pipeline as a batch run - human review, hash-chained audit
-    log, Excel and PDF reports, alerts and dashboard - over every shipment it processed.
-    QueueMode = DRYRUN reads the Dispatcher's payload file instead of Orchestrator.
+    The Performer is its own entry point: open Workflows\Queue\Performer.xaml in Studio and
+    run it. It loads the configuration itself when started without arguments, works through
+    the Dispatcher's work queue file one shipment at a time, and then runs the same finalise
+    pipeline as a batch run - human review, hash-chained audit log, Excel and PDF reports,
+    alerts and dashboard - over every shipment it processed.
     """
     rebuild = r"""
 ' Rehydrate one shipment's transactions back into the schema the validation engine
@@ -4207,42 +4162,14 @@ out_Summary = String.Format("{0} transaction(s) rehydrated", dt.Rows.Count)
             + log('"[PERFORM] " & shipmentId & ": " & Convert.ToString(Stats("Fail")) '
                   '& " failure(s), " & Convert.ToString(Stats("Warning")) & " warning(s)"'))
 
-    orchestrator_loop = sequence(
-        "Drain the Orchestrator queue",
-        '<DoWhile DisplayName="Do While - queue has items"><DoWhile.Condition>'
-        + vb("Not queueEmpty") + '</DoWhile.Condition>'
-        + sequence(
-            "Take the next queue item",
-            f'<ui:GetQueueItem DisplayName="{lit("Get Transaction Item")}" '
-            f'QueueType="{vb(QUEUE_NAME_EXPR.replace("in_Config", "Config"))}" '
-            f'TransactionItem="{vb("txItem")}" />'
-            + if_("txItem Is Nothing",
-                  assign("queueEmpty", "True", type_ref="x:Boolean", name="Assign - queue drained"),
-                  try_catch(
-                      # TryCatch.Try holds exactly one activity, hence the wrapping sequence.
-                      sequence("Process the item and mark it successful",
-                               validate_shipment('Convert.ToString(txItem.SpecificContent("EventsJson"))',
-                                                 'Convert.ToString(txItem.SpecificContent("ShipmentID"))')
-                               + f'<ui:SetTransactionStatus DisplayName="{lit("Set Transaction Status - Successful")}" '
-                                 f'TransactionItem="{vb("txItem")}" Status="Successful" />'),
-                      sequence("Report the failure to Orchestrator",
-                               log('"[PERFORM] " & shipmentId & " failed: " & exception.Message', level="Error")
-                               + assign("itemsFailed", "itemsFailed + 1", type_ref="x:Int32", name="Assign - count failed")
-                               + f'<ui:SetTransactionStatus DisplayName="{lit("Set Transaction Status - Failed")}" '
-                                 f'TransactionItem="{vb("txItem")}" Status="Failed" ErrorType="Application" '
-                                 f'Reason="{vb("exception.Message")}" />'),
-                      name="Try Catch - transaction processing"),
-                  name="If - queue drained"))
-        + '</DoWhile>')
-
-    dryrun_loop = sequence(
-        "Process the dispatcher's payload file",
-        invoke_code(DRYRUN_PAYLOADS_CODE, [
+    queue_loop = sequence(
+        "Process the work queue file",
+        invoke_code(WORK_QUEUE_CODE, [
             ("In", "in_Config", DICT_SO, "Config"),
             ("Out", "out_dtPayloads", "sd:DataTable", "dtPayloads"),
             ("Out", "out_Summary", "x:String", "summary"),
-        ], name="Invoke Code - read dry-run payloads")
-        + log('"[PERFORM] DRYRUN - " & summary')
+        ], name="Invoke Code - read the work queue")
+        + log('"[PERFORM] Work queue - " & summary')
         + for_each_row("dtPayloads",
                        try_catch(
                            validate_shipment('Convert.ToString(CurrentPayload("EventsJson"))',
@@ -4276,7 +4203,7 @@ out_Summary = String.Format("{0} transaction(s) rehydrated", dt.Rows.Count)
         ], name="Invoke 14 - Finalise run"))
 
     body = sequence(
-        "Performer - validate shipments from the queue",
+        "Performer - validate shipments from the work queue",
         if_("in_Config Is Nothing",
             sequence("Standalone job - load the configuration",
                      assign("projectRoot", "Directory.GetCurrentDirectory()")
@@ -4294,9 +4221,7 @@ out_Summary = String.Format("{0} transaction(s) rehydrated", dt.Rows.Count)
             name="If - started without arguments")
         + assign('Config("RunKind")', '"QUEUE"', type_ref="x:Object", name="Assign - run kind")
         + _mark("Init", "Config")
-        + log('"[PERFORM] Queue mode: " & Convert.ToString(Config("QueueMode")) & ", queue " & Convert.ToString(Config("QueueName"))')
-        + if_('Convert.ToString(Config("QueueMode")).Trim().ToUpperInvariant() = "ORCHESTRATOR"',
-              orchestrator_loop, dryrun_loop, name="If - Orchestrator or dry run")
+        + queue_loop
         + log('"[PERFORM] " & itemsProcessed.ToString() & " shipment(s) processed, " & itemsFailed.ToString() & " failed"')
         + if_("dtAllResults IsNot Nothing AndAlso dtAllResults.Rows.Count > 0",
               finalise,
@@ -4304,7 +4229,6 @@ out_Summary = String.Format("{0} transaction(s) rehydrated", dt.Rows.Count)
               name="If - anything processed"),
         variables((DICT_SO, "Config"), ("sd:DataTable", "dtRules"), ("sd:DataTable", "dtWallets"),
                   ("x:String", "projectRoot"),
-                  ("ui:QueueItem", "txItem"), ("x:Boolean", "queueEmpty"),
                   ("x:String", "shipmentId"), ("x:String", "summary"),
                   ("sd:DataTable", "dtPayloads"), ("sd:DataTable", "dtJoined"),
                   ("sd:DataTable", "dtResults"), ("sd:DataTable", "dtExceptions"),
@@ -4924,8 +4848,8 @@ def main_workflow() -> str:
         ], name="Invoke 03 - Preprocess and map")
         + _mark("Map", "Config")
         + log('"[MAIN] Joined rows ready: " & dtJoined.Rows.Count.ToString()')
-        # BATCH validates the whole run in one job. DISPATCH instead splits it into
-        # one Orchestrator queue item per shipment for the Performer to pick up.
+        # BATCH validates the whole run in one job. DISPATCH instead splits it into a
+        # work queue file, one item per shipment, for the Performer to process.
         + if_('Convert.ToString(Config("RunMode")).Trim().ToUpperInvariant() = "DISPATCH"',
               sequence("Dispatch mode - split into queue items",
                        invoke_workflow("Workflows\\Queue\\Dispatcher.xaml", [
@@ -4966,7 +4890,7 @@ def main_workflow() -> str:
               name="If - dispatch or batch"))
 
     # Any failure is logged with a screenshot of the desktop at that moment, then re-thrown
-    # so Orchestrator still records the job as Faulted.
+    # so Studio reports the run as failed.
     screenshot = try_catch(
         sequence("Capture the screen",
                  invoke_code(FAILURE_SCREENSHOT_PATH_CODE, [
@@ -5040,9 +4964,9 @@ GENERATORS = {
 }
 
 
-# Process entry points Orchestrator can start. The Performer runs as its own process
-# (triggered by the queue); 12_Verify_AuditChain lets an auditor check the trail without
-# running a validation. Test-case entry points are managed by build_tests.py.
+# Entry points that can be run on their own from Studio. The Performer processes the
+# work queue file; 12_Verify_AuditChain lets an auditor check the trail without running a
+# validation. Test-case entry points are managed by build_tests.py.
 PROCESS_ENTRY_POINTS = [
     "Main.xaml",
     "Workflows\\Queue\\Performer.xaml",

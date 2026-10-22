@@ -23,7 +23,7 @@ drop slides 8 and 13 and shorten the future scope.
 | 10 Human-in-the-loop | **Nitin** | His workflow |
 | 11 Audit trail | **Nitin** | His workflow, and the strongest moment |
 | 12 Evidence pack | **Nitin** | He owns reporting |
-| 13 Queue and Performer | **Adithya** | Orchestrator and packaging |
+| 13 Queue and Performer | **Adithya** | Dispatcher / Performer split |
 | 14 Verification · 15 Status | **Nitin** | He owns the tests and the honesty slide |
 | 16 Close | **Either** | Whoever is steadier under time pressure |
 
@@ -298,14 +298,14 @@ just did.
   bottom is read back out of the audit log itself, so it cannot disagree with the evidence."
 - **Teams and Slack payloads** — **new** — open `Alert_*_teams.json` if alerts come up. "An
   Adaptive Card and a Block Kit message, written to disk so delivery is testable without a
-  tenant."
+  real Teams or Slack channel."
 
 ---
 
 ## 13 · Queue mode and the Performer (45s) — Adithya — drop if short on time
 
-> "For enterprise volume the same run splits into one Orchestrator queue item per shipment —
-> forty-eight transactions become twelve work items. `RunMode` is one cell in Config.xlsx."
+> "For volume, the same run splits into one work item per shipment — forty-eight
+> transactions become twelve work items. `RunMode` is one cell in Config.xlsx."
 
 Why a shipment and not a transaction, which is the obvious question:
 
@@ -316,16 +316,15 @@ Why a shipment and not a transaction, which is the obvious question:
 
 **New since Review 2 — the Performer:**
 
-> "The Performer is now its own entry point. It drains the queue in one job and then calls the
-> same finalise pipeline a batch run uses, so queue mode produces the same audit trail, the
-> same Excel and PDF reports and the same dashboard."
+> "The Performer is its own entry point — you open it in Studio and run it. It works through
+> the queue and then calls the same finalise pipeline a batch run uses, so queue mode produces
+> the same audit trail, the same Excel and PDF reports and the same dashboard."
 
-Then be straight, before you are asked:
+Then say plainly what the queue is, before you are asked:
 
-> "Dispatch and perform are tested end to end in dry run — forty-eight transactions become
-> twelve payloads and the Performer processes them into a full evidence pack. The three
-> Orchestrator queue activities themselves have never run against a live queue. That is the
-> one untested hop in the project."
+> "The queue is a local file. The project runs entirely in UiPath Studio — we don't use
+> Orchestrator. The split per shipment is what matters, and moving to an Orchestrator queue
+> later would only swap that file for two queue activities."
 
 ---
 
@@ -354,12 +353,11 @@ Give the three numbers off the slide, then:
 
 Left column briskly — do not read all twelve lines, say "everything in the pipeline, all six
 rules, three feeds, two schemas, both mapping modes, three ERP sources, the full evidence
-pack, and dispatch and perform in dry run."
+pack, and dispatch and perform through the work queue."
 
 Then the right column slowly, because this is the slide that earns trust:
 
-> "Four things have not been executed. A live Orchestrator queue. A live Etherscan API key.
-> Real browser automation — WEB mode parses the explorer's HTML, because UIAutomation 25.10
+> "Three things have not been executed. A live Etherscan API key. Real browser automation — WEB mode parses the explorer's HTML, because UIAutomation 25.10
 > removed the classic scraping activity and its replacement needs a recorded descriptor. And
 > real mail and chat endpoints; delivery is tested against a local capture server."
 
@@ -396,8 +394,15 @@ a perfectly valid on-chain transaction.
 
 **"Why RPA instead of a Python script?"**
 The rules, thresholds and whitelist are owned by logistics operations, not developers. A
-spreadsheet plus a scheduled robot puts change control where the domain knowledge is. It also
-inherits Orchestrator's scheduling, queueing, retry and audit logging for free.
+spreadsheet plus a robot puts change control where the domain knowledge is. And the same
+workflows can later be scheduled and queued by Orchestrator without being rewritten.
+
+**"Why isn't it deployed to Orchestrator?"**
+Our Orchestrator access ended before the final review, so we scoped the final version to UiPath
+Studio. We kept the queue design: the run still splits into one work item per shipment, and the
+Performer processes them as its own entry point. The only difference is that the queue is a
+local file instead of an Orchestrator queue. Moving to Orchestrator means swapping that file for
+*Add Queue Item* and *Get Transaction Item*; the validation itself would not change.
 
 **"Why hash the audit log when it's already on a blockchain?"**
 The transactions are on-chain. The validation isn't — it happens off-chain, in the bot. The
@@ -422,9 +427,9 @@ drift exactly at the tolerance boundary, a checksummed address against a lower-c
 same hash on two shipments.
 
 **"What doesn't work?"**
-Nothing is stubbed, but four final hops need accounts we don't hold: a live Orchestrator queue
-(dispatch and perform are tested in dry run), a live Etherscan key, real mail/Teams/Slack
-endpoints (delivery is tested against a local capture server), and real browser automation. Also
+Nothing is stubbed, but three final hops need accounts or tools we don't have: a live Etherscan
+key, real mail/Teams/Slack endpoints (delivery is tested against a local capture server), and
+real browser automation. Orchestrator is out of scope — the project runs in Studio. Also
 the review form is built in the workflow rather than designed as a Studio `.uiform`, because those
 can only be drawn in Studio's designer. All listed under "Known gaps" in the README.
 

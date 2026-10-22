@@ -414,9 +414,7 @@ def write_config(path):
         ("LogLevel",                    "Info",                         "Info | Trace. Trace also logs every transaction's verdict."),
         ("EscalationMode",              "SIMULATE",                     "PROMPT shows the reviewer window (attended only); SIMULATE applies the decision below; AUTO_LOG defers."),
         ("SimulatedEscalationDecision", "REJECTED - hold the shipment and open an investigation", "Used when EscalationMode = SIMULATE, so rehearsals produce the same artefacts as a real review."),
-        ("QueueMode",                   "DRYRUN",                       "ORCHESTRATOR pushes real queue items; DRYRUN writes the payloads to disk for inspection."),
-        ("QueueName",                   "BlockchainValidationQueue",    "Orchestrator queue used by Dispatcher and Performer."),
-        ("RunMode",                     "BATCH",                        "BATCH validates the whole run in one job; DISPATCH splits it into one Orchestrator queue item per shipment."),
+        ("RunMode",                     "BATCH",                        "BATCH validates the whole run in one job; DISPATCH writes a work queue file, one item per shipment, for Workflows\\Queue\\Performer.xaml to process."),
         ("ExplorerPageUrl",             r"Data\Input\MockChain\explorer_ethereum.html", "Used when DataSourceMode = WEB. A local replica by default; point at a live explorer URL to scrape the real thing."),
         # ---- Added to close the remaining gaps against the Review 1 deck ------
         ("ChainRecordsPath",            "result",                       "JSON path of the transaction array in a MOCK/API response. 'result' for Etherscan."),
@@ -438,7 +436,7 @@ def write_config(path):
         ("DashboardPushUrl",            "",                             "Optional: Power BI streaming-dataset push URL or a Google Apps Script web app. Blank = no push."),
         ("DashboardPushFormat",         "POWERBI",                      "POWERBI posts one flat KPI row; JSON posts the full dashboard_summary.json document."),
         ("RunHistoryFile",              "RunHistory.csv",               "Per-run KPIs and processing time, kept beside the audit log for trend charts."),
-        ("QueueDryRunFile",             "",                             "Performer in DRYRUN mode: payload file to process. Blank = the newest file in Reports\\QueueDryRun."),
+        ("QueueFile",                   "",                             "Performer: work queue file to process. Blank = the newest file in Reports\\WorkQueue."),
     ]
     write_sheet(ws, ["Name", "Value", "Notes"],
                 [[n, v, d] for n, v, d in settings], widths=[30, 62, 74])
