@@ -17,7 +17,9 @@ $ErrorActionPreference = "Stop"
 $Root      = Split-Path $PSScriptRoot -Parent
 $ProjectDir = Join-Path $Root "BlockchainLogisticsValidator"
 $Audit     = Join-Path $ProjectDir "Data\Output\AuditLogs\ValidationAuditLog.csv"
-$UiRobot   = Join-Path $env:LOCALAPPDATA "Programs\UiPath\Studio\UiRobot.exe"
+. (Join-Path $PSScriptRoot "UiPathPaths.ps1")
+Assert-UiPathRobot
+$UiRobot   = $UiPathRobotExe
 
 if (-not (Test-Path $Audit)) {
     throw "No audit log yet. Run .\build.ps1 first to produce one."

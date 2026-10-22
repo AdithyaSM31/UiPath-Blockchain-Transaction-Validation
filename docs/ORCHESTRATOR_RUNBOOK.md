@@ -52,7 +52,7 @@ top and the status should read *Connected*. If it does not, in Assistant use
 **From the command line**
 
 ```bash
-powershell -File "build.ps1" -SkipRun
+powershell -ExecutionPolicy Bypass -File "build.ps1" -SkipRun
 ```
 
 That writes a `.nupkg` to `%TEMP%\blv-packages\`. Upload it in Orchestrator under
@@ -205,8 +205,8 @@ would interleave entries and the next verification would report a broken link.
 ### 4.5 Rehearse without a tenant
 
 ```bash
-powershell -File "build.ps1" -Set @{ RunMode = "DISPATCH" }
-powershell -File "build.ps1" -Entry "Workflows\Queue\Performer.xaml"
+powershell -ExecutionPolicy Bypass -File "build.ps1" -Set @{ RunMode = "DISPATCH" }
+powershell -ExecutionPolicy Bypass -File "build.ps1" -Entry "Workflows\Queue\Performer.xaml"
 ```
 
 The first writes `Reports\QueueDryRun\queue_payloads_<run>.json`; the second processes that

@@ -20,7 +20,9 @@ $Root       = Split-Path $PSScriptRoot -Parent
 $ProjectDir = Join-Path $Root "BlockchainLogisticsValidator"
 $LocalCfg   = Join-Path $ProjectDir "Data\Config.local.json"
 $OutputRoot = Join-Path $ProjectDir "Data\Output"
-$UiRobot    = Join-Path $env:LOCALAPPDATA "Programs\UiPath\Studio\UiRobot.exe"
+. (Join-Path $PSScriptRoot "UiPathPaths.ps1")
+Assert-UiPathRobot
+$UiRobot    = $UiPathRobotExe
 $PkgOut     = Join-Path $env:TEMP "blv-packages"
 
 function Invoke-Run([hashtable]$Overrides, [string]$Label) {
@@ -28,7 +30,7 @@ function Invoke-Run([hashtable]$Overrides, [string]$Label) {
     $cfg | ConvertTo-Json | Set-Content -Path $LocalCfg -Encoding utf8
 
     Get-ChildItem $PkgOut -Filter "*.nupkg" -ErrorAction SilentlyContinue | Remove-Item -Force
-    & $UiRobot pack (Join-Path $ProjectDir "project.json") --output $PkgOut 2>&1 | Out-Null
+    Invoke-UiPathPack -ProjectJson (Join-Path $ProjectDir "project.json") -OutputDir $PkgOut | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "Pack failed for $Label" }
     $pkg = Get-ChildItem $PkgOut -Filter "*.nupkg" | Select-Object -First 1
 

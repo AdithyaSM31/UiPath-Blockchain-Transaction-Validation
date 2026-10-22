@@ -15,7 +15,9 @@ $ErrorActionPreference = "Stop"
 
 $Root       = Split-Path $PSScriptRoot -Parent
 $ProjectDir = Join-Path $Root "BlockchainLogisticsValidator"
-$UiRobot    = Join-Path $env:LOCALAPPDATA "Programs\UiPath\Studio\UiRobot.exe"
+. (Join-Path $PSScriptRoot "UiPathPaths.ps1")
+Assert-UiPathRobot
+$UiRobot    = $UiPathRobotExe
 $PkgOut     = Join-Path $env:TEMP "blv-packages"
 
 $ProjectJson = Join-Path $ProjectDir "project.json"

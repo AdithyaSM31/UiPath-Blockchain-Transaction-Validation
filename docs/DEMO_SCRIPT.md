@@ -37,7 +37,7 @@ Two people talking over one screen reads as unprepared.
 ## Before you present
 
 ```bash
-powershell -File "tools\run_all_checks.ps1"
+powershell -ExecutionPolicy Bypass -File "tools\run_all_checks.ps1"
 ```
 
 Expect `19/19 checks passed` (that includes `11/11 test cases passed`). If anything is red,
@@ -170,7 +170,7 @@ a short note, and click **Record decision and resume**. The run continues.
 ### 5.3 Any blockchain (45s)
 
 ```bash
-powershell -File "tools\chain_swap_demo.ps1"
+powershell -ExecutionPolicy Bypass -File "tools\chain_swap_demo.ps1"
 ```
 
 > "Same bot, three feeds: Ethereum, Polygon, and a Hyperledger Besu export whose field names
@@ -191,7 +191,7 @@ exactly the fields the deck promised.
 Then:
 
 ```bash
-powershell -File "tools\tamper_test.ps1"
+powershell -ExecutionPolicy Bypass -File "tools\tamper_test.ps1"
 ```
 
 It verifies clean, flips one `FAIL` verdict to `PASS` — the exact edit somebody covering up an
@@ -224,7 +224,7 @@ Open the **Test** tab in Studio and run all tests. Eleven go green.
 ## 6 · Scale (45s)
 
 ```bash
-powershell -File "build.ps1" -Set @{ RunMode = "DISPATCH" }
+powershell -ExecutionPolicy Bypass -File "build.ps1" -Set @{ RunMode = "DISPATCH" }
 ```
 
 > "For enterprise volume the same run splits into one Orchestrator queue item per shipment —
@@ -235,7 +235,7 @@ Show `Data\Output\Reports\QueueDryRun\queue_payloads_*.json`, then process it th
 Orchestrator Performer would:
 
 ```bash
-powershell -File "build.ps1" -Entry "Workflows\Queue\Performer.xaml"
+powershell -ExecutionPolicy Bypass -File "build.ps1" -Entry "Workflows\Queue\Performer.xaml"
 ```
 
 > "Same 40 / 1 / 7, same audit trail and reports — from queue items instead of one batch."
