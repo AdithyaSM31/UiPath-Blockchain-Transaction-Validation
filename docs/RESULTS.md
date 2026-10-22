@@ -41,7 +41,7 @@ it was built on.
 | Pack / publish — every workflow and all 11 test cases | passed |
 | Workflow Analyzer | 0 Error-severity findings |
 | Acceptance suite, first full run on 26.0.204 | **18/19** — only `UiPath test cases` failed |
-| `tools\run_tests.ps1` after the fixes below | **11/11 test cases passed** |
+| Acceptance suite, after the fixes below | **19/19 checks passed**, including **11/11 test cases** |
 
 Four defects were found by running these for the first time, and fixed:
 
@@ -52,10 +52,9 @@ Four defects were found by running these for the first time, and fixed:
 | TC08 | Canonical `DateTime` columns were created with a `DataColumn`'s default `DateTimeMode` of `UnspecifiedLocal`, which strips `DateTimeKind.Utc` back to `Unspecified` on read. The transforms produce correct UTC values, but for a column named `EventTimestampUtc` anything comparing against `DateTime.UtcNow` or re-serialising would reinterpret it in the robot's local zone. Now `DataSetDateTime.Utc`. |
 | TC08 | *Test* bug: `Invoke Code` runs its body by reflection, so the exception reaching the catch is a `TargetInvocationException` whose own `Message` is generic. The assertion that an incomplete mapping sheet is "rejected by name" was reading the wrapper, not the inner message. Now `GetBaseException().Message`. |
 
-> **Not yet re-measured:** a full 19/19 suite run *after* the four fixes above. The run that
-> measured 18/19 predates them; since then `11/11` test cases and a clean pack have been
-> confirmed directly, but the complete suite has not been re-run end to end. Run
-> `powershell -ExecutionPolicy Bypass -File tools\run_all_checks.ps1` and record the number here.
+The suite was then re-run end to end with all four fixes in place and reported
+**`19/19 checks passed.`** with `11/11 test cases passed.` — so every claim in this document,
+and on the final review deck, is measured on Studio 26.0.204 rather than carried over.
 
 Two environment notes, both now handled in `tools\UiPathPaths.ps1` and documented in
 [USER_GUIDE.md §2.1](USER_GUIDE.md#21-two-things-that-bite-on-a-fresh-machine): Studio 26
