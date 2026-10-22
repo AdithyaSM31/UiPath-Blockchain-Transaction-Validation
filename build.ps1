@@ -43,7 +43,12 @@ Get-Process -Name "UiPath.Executor", "UiPath.Executor.NetCore" -ErrorAction Sile
 # --- Analyze -------------------------------------------------------------
 if ($Analyze) {
     Write-Host "`n=== Workflow Analyzer ===" -ForegroundColor Cyan
+    # The CLI prints a summary line to stderr whenever it reports anything at all; under
+    # ErrorActionPreference=Stop that would abort the build before the findings are read.
+    # Severity is decided from the JSON below, not from the stream.
+    $ErrorActionPreference = "Continue"
     $raw = & $StudioCli analyze --project-path $ProjectJson 2>&1 | Out-String
+    $ErrorActionPreference = "Stop"
     # Surface only Error/Warning severities; Info entries are counts and stats.
     $findings = [regex]::Matches($raw, '"[0-9a-f-]{36}-ErrorCode":\s*"([^"]+)"[\s\S]*?"[0-9a-f-]{36}-ErrorSeverity":\s*"([^"]+)"[\s\S]*?"[0-9a-f-]{36}-Description":\s*"([^"]*)"')
     $bad = 0
@@ -86,8 +91,12 @@ $startedAt = Get-Date
 $args = @("execute", "--file", $pkg.FullName)
 if ($Entry) { $args += @("--entry", $Entry); Write-Host "  entry point: $Entry" }
 
+# A faulted job writes to stderr; with ErrorActionPreference=Stop that would abort this
+# script before the exit code and the execution log - the part worth reading - are shown.
+$ErrorActionPreference = "Continue"
 $runOut = & $UiRobot @args 2>&1 | Out-String
 $exit = $LASTEXITCODE
+$ErrorActionPreference = "Stop"
 if ($runOut.Trim()) { Write-Host $runOut.Trim() }
 if ($exit -eq 0) { Write-Host "  Exit code 0" -ForegroundColor Green }
 else             { Write-Host "  Exit code $exit" -ForegroundColor Red }

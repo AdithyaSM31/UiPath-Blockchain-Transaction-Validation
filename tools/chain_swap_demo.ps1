@@ -1,13 +1,16 @@
 <#
     chain_swap_demo.ps1 - demonstrate Novelty 3: blockchain agnosticism.
 
-    Runs the bot twice against two different networks. Nothing changes between the runs
-    except configuration values - no workflow is edited, and the project is not rebuilt
-    from different sources. The extraction layer normalises every explorer response to
-    one internal schema, so the validation engine never learns which chain it came from.
+    Runs the bot against three feeds. Nothing changes between the runs except
+    configuration values - no workflow is edited, and the project is not rebuilt from
+    different sources. The FieldMapping sheet selected in Config.xlsx translates each
+    feed into one canonical schema, so the validation engine never learns which chain,
+    explorer or exporter the data came from.
 
-        run 1: Ethereum mainnet  (chainid 1)
-        run 2: Polygon           (chainid 137)
+        run 1: Ethereum mainnet  (chainid 1)     Etherscan txlist   FieldMapping
+        run 2: Polygon           (chainid 137)   Etherscan txlist   FieldMapping
+        run 3: Hyperledger Besu  (chainid 1337)  ethereum-etl export, different field
+               names and timestamp format        FieldMapping_EvmEtl
 
     Run:  powershell -File tools\chain_swap_demo.ps1
 #>
@@ -39,7 +42,7 @@ function Invoke-Run([hashtable]$Overrides, [string]$Label) {
         if ($_ -match '^(\d\d:\d\d:\d\d)\.\d+\s+\w+\s+(\{.*\})$') {
             try { $o = $Matches[2] | ConvertFrom-Json } catch { return }
             if ($o.timeStamp -and ([datetime]$o.timeStamp) -lt $startedAt.AddSeconds(-2)) { return }
-            if ($o.message -match '^\[(INIT|EXTRACT/|VALIDATE\] total|AUDIT)') { $lines += $o.message }
+            if ($o.message -match '^\[(INIT|EXTRACT/|MAP-FIELDS|VALIDATE\] total|AUDIT)') { $lines += $o.message }
         }
     }
 
@@ -48,7 +51,7 @@ function Invoke-Run([hashtable]$Overrides, [string]$Label) {
     return $lines
 }
 
-Write-Host "No workflow is modified between these two runs - only Config values." -ForegroundColor Yellow
+Write-Host "No workflow is modified between these runs - only Config values." -ForegroundColor Yellow
 
 $eth = Invoke-Run @{
     ChainId       = "1"
@@ -60,6 +63,13 @@ $poly = Invoke-Run @{
     MockChainFile = "Data\Input\MockChain\etherscan_txlist_polygon.json"
 } "RUN 2 - Polygon (chainid 137)"
 
+$besu = Invoke-Run @{
+    ChainId           = "1337"
+    MockChainFile     = "Data\Input\MockChain\evm_etl_besu_export.json"
+    ChainRecordsPath  = "transactions"
+    FieldMappingSheet = "FieldMapping_EvmEtl"
+} "RUN 3 - Hyperledger Besu (chainid 1337), ethereum-etl export"
+
 # Restore the plain local config so a later build.ps1 run is unaffected.
 @{ OutputRoot = $OutputRoot } | ConvertTo-Json | Set-Content -Path $LocalCfg -Encoding utf8
 
@@ -67,10 +77,11 @@ function Get-Totals($lines) { ($lines | Where-Object { $_ -match 'total=' }) -jo
 
 $a = Get-Totals $eth
 $b = Get-Totals $poly
+$c = Get-Totals $besu
 
 Write-Host "`n----------------------------------------------------------" -ForegroundColor DarkGray
-if ($a -and $a -eq $b) {
-    Write-Host "Identical validation outcome across two networks:" -ForegroundColor Green
+if ($a -and $a -eq $b -and $a -eq $c) {
+    Write-Host "Identical validation outcome across three feeds and two schemas:" -ForegroundColor Green
     Write-Host "  $a" -ForegroundColor Green
     Write-Host "Chain agnosticism demonstrated - config change only." -ForegroundColor Green
     exit 0
@@ -78,5 +89,6 @@ if ($a -and $a -eq $b) {
     Write-Host "Outcomes differed between chains:" -ForegroundColor Yellow
     Write-Host "  ethereum: $a"
     Write-Host "  polygon : $b"
+    Write-Host "  besu    : $c"
     exit 1
 }

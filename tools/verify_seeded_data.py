@@ -20,7 +20,7 @@ import json
 import os
 import sys
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timezone
 
 from openpyxl import load_workbook
 
@@ -41,6 +41,11 @@ def check(label: str, condition: bool, detail: str = "") -> None:
     else:
         print(f"  FAIL  {label}   {detail}")
         failures.append(label)
+
+
+def utc_naive(epoch: int) -> datetime:
+    """Epoch seconds as a naive UTC datetime, comparable with the ERP workbook's values."""
+    return datetime.fromtimestamp(epoch, timezone.utc).replace(tzinfo=None)
 
 
 # --------------------------------------------------------------------------
@@ -118,7 +123,7 @@ def main() -> int:
         d.update(
             hash=t["hash"].lower(),
             sender=t["from"].lower(),
-            ts=datetime.utcfromtimestamp(int(t["timeStamp"])),
+            ts=utc_naive(int(t["timeStamp"])),
             event=selector_to_event.get(t["methodId"].lower(), "UNKNOWN"),
         )
         decoded.append(d)
@@ -218,6 +223,53 @@ def main() -> int:
           all(a == a.lower() for a in erp_lower))
     check("so a raw string compare would fail without normalisation",
           not set(mixed_case) & set(erp_lower))
+
+    # ----------------------------------------------------------------------
+    # The alternative sources must carry exactly the same data, or the bot's
+    # "identical result whichever source" claims would prove nothing.
+    print("\n--- Alternative feeds and ERP sources agree ---")
+    poly_path = os.path.join(INPUT, "MockChain", "etherscan_txlist_polygon.json")
+    with open(poly_path, encoding="utf-8") as f:
+        poly = json.load(f)["result"]
+    check("Polygon feed carries the same transactions",
+          [(t["hash"], t["input"], t["timeStamp"], t["from"]) for t in poly]
+          == [(t["hash"], t["input"], t["timeStamp"], t["from"]) for t in txs])
+
+    etl_path = os.path.join(INPUT, "MockChain", "evm_etl_besu_export.json")
+    with open(etl_path, encoding="utf-8") as f:
+        etl = json.load(f)
+    rows = etl.get("transactions", [])
+    check("ethereum-etl export has a transactions array of 48", len(rows) == 48, f"got {len(rows)}")
+    etl_view = [(r["hash"], r["input"], datetime.strptime(r["block_timestamp"], "%Y-%m-%d %H:%M:%S UTC"),
+                 r["from_address"], int(r["block_number"]), r["receipt_status"] == 1) for r in rows]
+    eth_view = [(t["hash"], t["input"], utc_naive(int(t["timeStamp"])),
+                 t["from"].lower(), int(t["blockNumber"]), t["isError"] == "0") for t in txs]
+    check("ethereum-etl export maps field-for-field onto the Etherscan feed", etl_view == eth_view)
+    check("the two feeds share no field names for the core fields",
+          not {"blockNumber", "timeStamp", "from", "to", "methodId", "isError"} & set(rows[0]))
+
+    import csv
+    csv_dir = os.path.join(INPUT, "ERP_CSV")
+    with open(os.path.join(csv_dir, "Shipments.csv"), encoding="utf-8", newline="") as f:
+        csv_ships = list(csv.DictReader(f))
+    with open(os.path.join(csv_dir, "ShipmentEvents.csv"), encoding="utf-8", newline="") as f:
+        csv_events = list(csv.DictReader(f))
+    check("Shipments.csv matches the ERP workbook",
+          [(r["ShipmentID"], r["PONumber"], int(r["ExpectedQty"]), r["ReceiverAddress"]) for r in csv_ships]
+          == [(s["ShipmentID"], s["PONumber"], s["ExpectedQty"], s["ReceiverAddress"]) for s in shipments.values()])
+    check("ShipmentEvents.csv matches the ERP workbook",
+          [(r["ShipmentID"], r["EventName"], datetime.strptime(r["ExpectedEventTimestampUtc"], "%Y-%m-%d %H:%M:%S"),
+            r["HandlerAddress"]) for r in csv_events]
+          == [(e["ShipmentID"], e["EventName"], e["ExpectedEventTimestampUtc"], e["HandlerAddress"]) for e in erp_events])
+
+    txmap = load_sheet(os.path.join(INPUT, "TxShipmentMap.xlsx"), "TxMap")
+    map_by_hash = {str(m["TxHash"]).lower(): m for m in txmap}
+    check("TxShipmentMap resolves every transaction to its decoded shipment and PO",
+          all(map_by_hash.get(d["hash"], {}).get("ShipmentID") == d["shipmentId"]
+              and map_by_hash[d["hash"]]["PONumber"] == d["poNumber"] for d in decoded))
+
+    check("the SQL database file exists (tools/build_erp_database.ps1)",
+          os.path.exists(os.path.join(INPUT, "LogisticsERP.accdb")))
 
     print()
     if failures:

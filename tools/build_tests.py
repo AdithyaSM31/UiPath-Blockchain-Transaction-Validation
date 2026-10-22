@@ -30,8 +30,8 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from xamlgen import (  # noqa: E402
-    assign, if_, invoke_code, invoke_workflow, lit, log, sequence, throw,
-    variables, vb, workflow,
+    assign, excel_read, excel_scope, if_, invoke_code, invoke_workflow, lit, log, sequence,
+    throw, try_catch, variables, vb, workflow,
 )
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -330,15 +330,15 @@ def tc07() -> str:
     results_fixture = invoke_code('''
 Dim dt As New DataTable("Results")
 For Each c As String In New String() {"TxHash", "ShipmentID", "EventName", _
-        "ValidationStatus", "Severity", "FailureReasons", "HumanDecision", "HumanDecidedBy"}
+        "ValidationStatus", "Severity", "FailureReasons", "HumanDecision", "HumanDecidedBy", "InputDataHash"}
     dt.Columns.Add(c, GetType(String))
 Next
 dt.Columns.Add("ChainTimestampUtc", GetType(DateTime))
 dt.Columns.Add("OnChainQty", GetType(Long))
 
 Dim t As New DateTime(2026, 9, 1, 6, 0, 0, DateTimeKind.Utc)
-dt.Rows.Add("0xaaa", "SHP-T1", "Dispatched", "PASS", "NONE", "", "", "")
-dt.Rows.Add("0xbbb", "SHP-T2", "Delivered", "FAIL", "HIGH", "R2 FAIL: short by 20", "", "")
+dt.Rows.Add("0xaaa", "SHP-T1", "Dispatched", "PASS", "NONE", "", "", "", New String("a"c, 64))
+dt.Rows.Add("0xbbb", "SHP-T2", "Delivered", "FAIL", "HIGH", "R2 FAIL: short by 20", "", "", New String("b"c, 64))
 For Each r As DataRow In dt.Rows
     r("ChainTimestampUtc") = t
     r("OnChainQty") = 100L
@@ -392,6 +392,10 @@ out_Done = True
         ], name="Invoke 12 - verify (expect VALID)")
         + verify("chainValid", "a freshly written chain verifies")
         + verify('headHash.Length = 64', "chain head is a SHA-256 hash")
+        + verify('File.ReadAllLines(auditPath)(0).Contains(",InputDataHash,")',
+                 "every entry records the input data hash")
+        + verify('File.ReadAllLines(auditPath)(2).Contains("," & New String("b"c, 64) & ",")',
+                 "the transaction's input data hash is written into its entry")
         + tamper
         + invoke_workflow("Workflows\\12_Verify_AuditChain.xaml", [
             ("In", "in_AuditPath", "x:String", "auditPath"),
@@ -414,6 +418,351 @@ out_Done = True
                       ("x:String", "chainReport"), ("x:Boolean", "tampered")))
 
 
+
+# --------------------------------------------------------------------------
+# Shared: load the real configuration inside a test
+# --------------------------------------------------------------------------
+def load_config() -> str:
+    return (assign("projectRoot", "Directory.GetCurrentDirectory()")
+            + assign("configPath", 'Path.Combine(projectRoot, "Data", "Config.xlsx")')
+            + invoke_workflow("Workflows\\00_Init_ReadConfig.xaml", [
+                ("In", "in_ConfigPath", "x:String", "configPath"),
+                ("In", "in_ProjectRoot", "x:String", "projectRoot"),
+                ("Out", "out_Config", DICT_SO, "Config"),
+                ("Out", "out_dtRules", "sd:DataTable", "dtRules"),
+                ("Out", "out_dtWallets", "sd:DataTable", "dtWallets"),
+                ("Out", "out_dtMapping", "sd:DataTable", "dtMapping"),
+                ("Out", "out_dtSequence", "sd:DataTable", "dtSequence"),
+                ("Out", "out_dtSignatures", "sd:DataTable", "dtSignatures"),
+            ], name="Invoke 00 - read configuration"))
+
+
+CONFIG_VARS = (("x:String", "projectRoot"), ("x:String", "configPath"), (DICT_SO, "Config"),
+               ("sd:DataTable", "dtRules"), ("sd:DataTable", "dtWallets"), ("sd:DataTable", "dtMapping"),
+               ("sd:DataTable", "dtSequence"), ("sd:DataTable", "dtSignatures"))
+
+
+# --------------------------------------------------------------------------
+# TC08 - the field mapping makes the bot chain-agnostic (Novelty 3)
+# --------------------------------------------------------------------------
+def tc08() -> str:
+    read_feeds = invoke_code('''
+' The two real mock feeds: Etherscan txlist (Ethereum) and an ethereum-etl export
+' (Hyperledger Besu). Every field name and two value formats differ between them.
+Dim root As String = Directory.GetCurrentDirectory()
+Dim eth As JObject = JObject.Parse(File.ReadAllText(Path.Combine(root, "Data", "Input", "MockChain", "etherscan_txlist_response.json")))
+Dim etl As JObject = JObject.Parse(File.ReadAllText(Path.Combine(root, "Data", "Input", "MockChain", "evm_etl_besu_export.json")))
+out_Eth = CType(eth("result"), JArray)
+out_Etl = CType(etl("transactions"), JArray)
+'''.strip(), [("Out", "out_Eth", "njl:JArray", "ethRecords"), ("Out", "out_Etl", "njl:JArray", "etlRecords")],
+        name="Invoke Code - read both mock feeds")
+
+    read_sheets = excel_scope("configPath", sequence(
+        "Read both mapping sheets",
+        excel_read("FieldMapping", "dtMapEth", name="Read Range - FieldMapping")
+        + excel_read("FieldMapping_EvmEtl", "dtMapEtl", name="Read Range - FieldMapping_EvmEtl")),
+        name="Excel Application Scope - Config.xlsx")
+
+    def map_feed(records: str, mapping: str, out: str, label: str) -> str:
+        return invoke_workflow("Workflows\\01d_Apply_FieldMapping.xaml", [
+            ("In", "in_jRecords", "njl:JArray", records),
+            ("In", "in_dtMapping", "sd:DataTable", mapping),
+            ("In", "in_SourceMode", "x:String", '"MOCK"'),
+            ("Out", "out_dtChain", "sd:DataTable", out),
+        ], name=f"Invoke 01d - map the {label} feed")
+
+    compare = invoke_code('''
+' Compare every canonical column of every row. SourceMode is the only column allowed
+' to be equal by construction, so it proves nothing and is left out.
+Dim cols() As String = {"TxHash", "BlockNumber", "EventTimestampUtc", "SenderAddress", "ContractAddress", _
+                        "EventSelector", "ShipmentID", "OnChainQty", "PONumber", "TxFailed", "RawInput"}
+Dim diffs As New List(Of String)
+If in_A.Rows.Count <> in_B.Rows.Count Then diffs.Add("row counts differ")
+For i As Integer = 0 To Math.Min(in_A.Rows.Count, in_B.Rows.Count) - 1
+    For Each c As String In cols
+        If Not Object.Equals(in_A.Rows(i)(c), in_B.Rows(i)(c)) Then
+            diffs.Add(String.Format("row {0} {1}: '{2}' vs '{3}'", i, c, in_A.Rows(i)(c), in_B.Rows(i)(c)))
+        End If
+    Next
+Next
+out_Diffs = String.Join("; ", diffs.Take(5))
+'''.strip(), [("In", "in_A", "sd:DataTable", "dtEth"), ("In", "in_B", "sd:DataTable", "dtEtl"),
+          ("Out", "out_Diffs", "x:String", "diffs")], name="Invoke Code - compare the two tables")
+
+    broken_mapping = invoke_code('''
+Dim m As DataTable = in_Mapping.Copy()
+For i As Integer = m.Rows.Count - 1 To 0 Step -1
+    If Convert.ToString(m.Rows(i)("LogisticsField")) = "ShipmentID" Then m.Rows.RemoveAt(i)
+Next
+out_Mapping = m
+'''.strip(), [("In", "in_Mapping", "sd:DataTable", "dtMapEth"), ("Out", "out_Mapping", "sd:DataTable", "dtBroken")],
+        name="Invoke Code - mapping without ShipmentID")
+
+    steps = (
+        assign("configPath", 'Path.Combine(Directory.GetCurrentDirectory(), "Data", "Config.xlsx")')
+        + read_sheets
+        + read_feeds
+        + map_feed("ethRecords", "dtMapEth", "dtEth", "Etherscan")
+        + map_feed("etlRecords", "dtMapEtl", "dtEtl", "ethereum-etl")
+        + compare
+        + verify("dtEth.Rows.Count = 48", "all 48 Etherscan records are mapped")
+        + verify("dtEtl.Rows.Count = 48", "all 48 ethereum-etl records are mapped")
+        + verify('diffs = ""', "both schemas produce identical canonical transactions")
+        + verify('Convert.ToString(dtEtl.Rows(0)("ShipmentID")) = "SHP-1001"', "ABI string argument decoded")
+        + verify('Convert.ToInt64(dtEtl.Rows(0)("OnChainQty")) = 500', "ABI uint256 argument decoded")
+        + verify('Convert.ToDateTime(dtEtl.Rows(0)("EventTimestampUtc")).Kind = DateTimeKind.Utc',
+                 "timestamps are normalised to UTC")
+        + broken_mapping
+        + try_catch(
+            sequence("Map with an incomplete sheet",
+                     map_feed("ethRecords", "dtBroken", "dtChain", "incomplete")
+                     + assign("mappingError", '"no error raised"')),
+            assign("mappingError", "exception.Message"),
+            name="Try Catch - incomplete mapping must be rejected")
+        + verify('mappingError.Contains("ShipmentID")', "a mapping sheet missing a required field is rejected by name"))
+
+    return test_case("TC08_FieldMapping_ChainAgnostic", "TC08 field mapping is chain agnostic", steps,
+                     (("x:String", "configPath"), ("sd:DataTable", "dtMapEth"), ("sd:DataTable", "dtMapEtl"),
+                      ("njl:JArray", "ethRecords"), ("njl:JArray", "etlRecords"),
+                      ("sd:DataTable", "dtEth"), ("sd:DataTable", "dtEtl"), ("sd:DataTable", "dtBroken"),
+                      ("sd:DataTable", "dtChain"), ("x:String", "diffs"), ("x:String", "mappingError")))
+
+
+# --------------------------------------------------------------------------
+# Shared fixture: a results table with every column the finalise steps read
+# --------------------------------------------------------------------------
+RESULTS_FIXTURE_CODE = '''
+Dim dt As New DataTable("ValidationResults")
+dt.Columns.Add("RowNo", GetType(Integer))
+For Each c As String In New String() {"TxHash", "ShipmentID", "EventName", "SenderAddress", "ErpHandlerPartner", _
+        "PONumber", "Product", "MatchStatus", "R1_Status", "R2_Status", "R3_Status", "R4_Status", "R5_Status", "R6_Status", _
+        "ValidationStatus", "Severity", "FailureReasons", "HumanDecision", "HumanDecidedBy", "HumanDecidedAtUtc", "InputDataHash"}
+    dt.Columns.Add(c, GetType(String))
+Next
+dt.Columns.Add("ChainTimestampUtc", GetType(DateTime))
+dt.Columns.Add("ErpExpectedQty", GetType(Object))
+dt.Columns.Add("OnChainQty", GetType(Long))
+dt.Columns.Add("RequiresEscalation", GetType(Boolean))
+
+Dim t As New DateTime(2026, 9, 1, 6, 0, 0, DateTimeKind.Utc)
+Dim r1 As DataRow = dt.NewRow()
+r1("RowNo") = 1 : r1("TxHash") = "0x" & New String("a"c, 64) : r1("ShipmentID") = "SHP-T1" : r1("EventName") = "Dispatched"
+r1("SenderAddress") = "0x" & New String("1"c, 40) : r1("ErpHandlerPartner") = "NordPharma" : r1("PONumber") = "PO-1"
+r1("Product") = "Test vials" : r1("MatchStatus") = "MATCHED"
+For Each c As String In New String() {"R1_Status", "R2_Status", "R3_Status", "R4_Status", "R5_Status", "R6_Status"}
+    r1(c) = "PASS"
+Next
+r1("ValidationStatus") = "PASS" : r1("Severity") = "NONE" : r1("FailureReasons") = ""
+r1("HumanDecision") = "" : r1("HumanDecidedBy") = "" : r1("HumanDecidedAtUtc") = "" : r1("InputDataHash") = New String("c"c, 64)
+r1("ChainTimestampUtc") = t : r1("ErpExpectedQty") = 500L : r1("OnChainQty") = 500L : r1("RequiresEscalation") = False
+dt.Rows.Add(r1)
+
+' The second row carries the awkward content: parentheses and a backslash that PDF
+' strings must escape, and a non-ASCII dash that must not corrupt byte offsets.
+Dim r2 As DataRow = dt.NewRow()
+r2("RowNo") = 2 : r2("TxHash") = "0x" & New String("b"c, 64) : r2("ShipmentID") = "SHP-T2" : r2("EventName") = "Delivered"
+r2("SenderAddress") = "0x" & New String("9"c, 40) : r2("ErpHandlerPartner") = "LastMile" : r2("PONumber") = "PO-2"
+r2("Product") = "Test kits" : r2("MatchStatus") = "MATCHED"
+For Each c As String In New String() {"R1_Status", "R2_Status", "R4_Status", "R5_Status", "R6_Status"}
+    r2(c) = "PASS"
+Next
+r2("R3_Status") = "FAIL"
+r2("ValidationStatus") = "FAIL" : r2("Severity") = "CRITICAL"
+r2("FailureReasons") = "R3 FAIL: wallet (unregistered) \\ not approved " & ChrW(8212) & " expected LastMile " & New String("x"c, 300)
+r2("HumanDecision") = "" : r2("HumanDecidedBy") = "" : r2("HumanDecidedAtUtc") = "" : r2("InputDataHash") = New String("d"c, 64)
+r2("ChainTimestampUtc") = t.AddHours(50) : r2("ErpExpectedQty") = 120L : r2("OnChainQty") = 120L : r2("RequiresEscalation") = True
+dt.Rows.Add(r2)
+
+Dim stats As New Dictionary(Of String, Object)(StringComparer.OrdinalIgnoreCase)
+stats("Total") = 2 : stats("Pass") = 1 : stats("Warning") = 0 : stats("Fail") = 1 : stats("Escalations") = 1
+stats("PassPercent") = 50.0 : stats("RuleHitSummary") = "R3(AddressWhitelist)=1"
+For Each rid As String In New String() {"R1", "R2", "R3", "R4", "R5", "R6"}
+    stats(rid & "_Hits") = If(rid = "R3", 1, 0)
+Next
+
+Dim ex As DataTable = dt.Clone()
+ex.ImportRow(r2)
+
+' A private output folder, so a test never touches the project's real reports.
+Dim folder As String = Path.Combine(Path.GetTempPath(), "blv_tests_" & Guid.NewGuid().ToString("N"))
+Directory.CreateDirectory(folder)
+
+out_dt = dt
+out_Exceptions = ex
+out_Stats = stats
+out_Folder = folder
+'''.strip()
+
+
+def results_fixture() -> str:
+    return invoke_code(RESULTS_FIXTURE_CODE, [
+        ("Out", "out_dt", "sd:DataTable", "dtResults"),
+        ("Out", "out_Exceptions", "sd:DataTable", "dtExceptions"),
+        ("Out", "out_Stats", DICT_SO, "Stats"),
+        ("Out", "out_Folder", "x:String", "testFolder"),
+    ], name="Invoke Code - results fixture")
+
+
+FIXTURE_VARS = (("sd:DataTable", "dtResults"), ("sd:DataTable", "dtExceptions"),
+                (DICT_SO, "Stats"), ("x:String", "testFolder"))
+
+
+def isolate_outputs() -> str:
+    return (assign('Config("ReportsFolder")', "testFolder", type_ref="x:Object", name="Assign - test reports folder")
+            + assign('Config("ScreenshotFolder")', "testFolder", type_ref="x:Object", name="Assign - test screenshot folder"))
+
+
+def remove_folder() -> str:
+    return invoke_code('''
+If Directory.Exists(in_Folder) Then Directory.Delete(in_Folder, True)
+'''.strip(), [("In", "in_Folder", "x:String", "testFolder")], name="Invoke Code - remove the test folder")
+
+
+# --------------------------------------------------------------------------
+# TC09 - the PDF audit report is a structurally valid PDF
+# --------------------------------------------------------------------------
+def tc09() -> str:
+    inspect = invoke_code('''
+' Structural checks a PDF reader relies on: header, trailer, a cross-reference table
+' whose every offset lands on the object it names, and a page count that matches.
+Dim bytes() As Byte = File.ReadAllBytes(in_Path)
+Dim text As String = Encoding.ASCII.GetString(bytes)
+Dim problems As New List(Of String)
+If Not text.StartsWith("%PDF-1.4") Then problems.Add("missing %PDF-1.4 header")
+If Not text.EndsWith("%%EOF" & vbLf) Then problems.Add("missing %%EOF trailer")
+If bytes.Any(Function(b) b > 127) Then problems.Add("non-ASCII byte present")
+
+Dim sx As Integer = text.LastIndexOf("startxref")
+Dim xrefAt As Integer = Integer.Parse(text.Substring(sx + 9).Trim().Split(ChrW(10))(0))
+If Not text.Substring(xrefAt).StartsWith("xref") Then problems.Add("startxref does not point at the xref table")
+
+Dim xrefLines() As String = text.Substring(xrefAt).Split(ChrW(10))
+Dim count As Integer = Integer.Parse(xrefLines(1).Split(" "c)(1))
+For i As Integer = 1 To count - 1
+    Dim entry As String = xrefLines(1 + i + 1)
+    Dim off As Integer = Integer.Parse(entry.Substring(0, 10))
+    If Not text.Substring(off).StartsWith(i.ToString() & " 0 obj") Then problems.Add("xref entry " & i.ToString() & " is misplaced")
+Next
+
+Dim pages As Integer = System.Text.RegularExpressions.Regex.Matches(text, "/Type /Page /Parent").Count
+Dim declared As Integer = Integer.Parse(System.Text.RegularExpressions.Regex.Match(text, "/Count (\\d+)").Groups(1).Value)
+If pages = 0 OrElse pages <> declared Then problems.Add(String.Format("page count mismatch: {0} page objects, /Count {1}", pages, declared))
+
+out_Problems = String.Join("; ", problems)
+out_Pages = pages
+'''.strip(), [("In", "in_Path", "x:String", "pdfPath"), ("Out", "out_Problems", "x:String", "problems"),
+          ("Out", "out_Pages", "x:Int32", "pageCount")], name="Invoke Code - inspect the PDF structure")
+
+    steps = (
+        load_config()
+        + results_fixture()
+        + isolate_outputs()
+        + invoke_workflow("Workflows\\08_Report_PDF.xaml", [
+            ("In", "in_Config", DICT_SO, "Config"),
+            ("In", "in_dtResults", "sd:DataTable", "dtResults"),
+            ("In", "in_dtRules", "sd:DataTable", "dtRules"),
+            ("In", "in_Stats", DICT_SO, "Stats"),
+            ("In", "in_AuditPath", "x:String", '"C:\\\\audit\\\\ValidationAuditLog.csv"'),
+            ("In", "in_HeadHash", "x:String", 'New String("e"c, 64)'),
+            ("In", "in_ChainValid", "x:Boolean", "True"),
+            ("In", "in_ChainReport", "x:String", '"VALID - 2 entries verified (test)"'),
+            ("In", "in_ReportPath", "x:String", '""'),
+            ("Out", "out_PdfPath", "x:String", "pdfPath"),
+        ], name="Invoke 08 - write the PDF")
+        + verify("File.Exists(pdfPath)", "the PDF is written")
+        + inspect
+        + verify('problems = ""', "the PDF header, xref table, objects and page tree are consistent")
+        + verify("pageCount >= 1", "the report has at least one page")
+        + verify('Path.GetFileName(pdfPath).StartsWith("AuditReport_")', "the file is named after the run")
+        + remove_folder())
+
+    return test_case("TC09_PdfAuditReport", "TC09 PDF audit report structure", steps,
+                     CONFIG_VARS + FIXTURE_VARS + (("x:String", "pdfPath"), ("x:String", "problems"),
+                                                   ("x:Int32", "pageCount")))
+
+
+# --------------------------------------------------------------------------
+# TC10 - the review form pauses, and an unanswered form defers (Novelty 2)
+# --------------------------------------------------------------------------
+def tc10() -> str:
+    configure = (
+        assign('Config("EscalationEnabled")', '"True"', type_ref="x:Object", name="Assign - escalation on")
+        + assign('Config("AttendedMode")', '"True"', type_ref="x:Object", name="Assign - attended")
+        + assign('Config("EscalationMode")', '"PROMPT"', type_ref="x:Object", name="Assign - prompt the reviewer")
+        + assign('Config("ReviewUi")', '"WINDOW"', type_ref="x:Object", name="Assign - review form")
+        # Three seconds: long enough for the form to render, short enough for a test.
+        + assign('Config("ReviewTimeoutMinutes")', '"0.05"', type_ref="x:Object", name="Assign - short timeout"))
+
+    steps = (
+        load_config()
+        + results_fixture()
+        + isolate_outputs()
+        + configure
+        + invoke_workflow("Workflows\\06_HumanInTheLoop_Escalation.xaml", [
+            ("In", "in_Config", DICT_SO, "Config"),
+            ("InOut", "io_dtResults", "sd:DataTable", "dtResults"),
+            ("Out", "out_EscalationCount", "x:Int32", "escalations"),
+        ], name="Invoke 06 - show the review form")
+        + verify("escalations = 1", "exactly the escalated transaction is reviewed")
+        + verify('Convert.ToString(dtResults.Rows(1)("HumanDecision")).StartsWith("DEFERRED - no reviewer response")',
+                 "an unanswered form records DEFERRED")
+        + verify('Convert.ToString(dtResults.Rows(1)("HumanDecidedBy")) = "TIMEOUT"', "the timeout is attributed")
+        + verify('Convert.ToString(dtResults.Rows(1)("HumanDecidedAtUtc")) <> ""', "the decision is time-stamped")
+        + verify('Convert.ToString(dtResults.Rows(0)("HumanDecision")) = ""', "a passing transaction is not reviewed")
+        + verify('File.Exists(Path.Combine(testFolder, "Review_" & Convert.ToString(Config("RunId")) & "_SHP-T2_Delivered.png"))',
+                 "an image of the form the reviewer saw is kept as evidence")
+        + remove_folder())
+
+    return test_case("TC10_ReviewForm_Timeout", "TC10 review form timeout and evidence", steps,
+                     CONFIG_VARS + FIXTURE_VARS + (("x:Int32", "escalations"),))
+
+
+# --------------------------------------------------------------------------
+# TC11 - Teams and Slack payloads are composed correctly
+# --------------------------------------------------------------------------
+def tc11() -> str:
+    inspect = invoke_code('''
+Dim problems As New List(Of String)
+Dim runId As String = Convert.ToString(in_Config("RunId"))
+Dim teams As JObject = JObject.Parse(File.ReadAllText(Path.Combine(in_Folder, "Alert_" & runId & "_teams.json")))
+Dim slack As JObject = JObject.Parse(File.ReadAllText(Path.Combine(in_Folder, "Alert_" & runId & "_slack.json")))
+
+If Convert.ToString(teams("type")) <> "message" Then problems.Add("teams: type is not message")
+Dim att As JObject = CType(teams("attachments")(0), JObject)
+If Convert.ToString(att("contentType")) <> "application/vnd.microsoft.card.adaptive" Then problems.Add("teams: not an Adaptive Card")
+If Convert.ToString(att("content")("type")) <> "AdaptiveCard" Then problems.Add("teams: card type")
+If Not att.ToString().Contains("SHP-T2") Then problems.Add("teams: finding missing")
+If Not att.ToString().Contains("ACTION REQUIRED") Then problems.Add("teams: headline missing")
+
+Dim blocks As JArray = CType(slack("blocks"), JArray)
+If blocks.Count < 3 Then problems.Add("slack: expected header, fields and findings blocks")
+If Convert.ToString(blocks(0)("type")) <> "header" Then problems.Add("slack: first block is not a header")
+If Not slack.ToString().Contains("SHP-T2") Then problems.Add("slack: finding missing")
+
+out_Problems = String.Join("; ", problems)
+'''.strip(), [("In", "in_Config", DICT_SO, "Config"), ("In", "in_Folder", "x:String", "testFolder"),
+          ("Out", "out_Problems", "x:String", "problems")], name="Invoke Code - inspect both payloads")
+
+    steps = (
+        load_config()
+        + results_fixture()
+        + isolate_outputs()
+        + assign('Config("TeamsWebhookUrl")', '""', type_ref="x:Object", name="Assign - no Teams URL")
+        + assign('Config("SlackWebhookUrl")', '""', type_ref="x:Object", name="Assign - no Slack URL")
+        + invoke_workflow("Workflows\\09b_Alert_Webhooks.xaml", [
+            ("In", "in_Config", DICT_SO, "Config"),
+            ("In", "in_dtExceptions", "sd:DataTable", "dtExceptions"),
+            ("In", "in_Stats", DICT_SO, "Stats"),
+            ("In", "in_ShouldSend", "x:Boolean", "True"),
+        ], name="Invoke 09b - compose Teams and Slack alerts")
+        + inspect
+        + verify('problems = ""', "Teams gets an Adaptive Card and Slack gets Block Kit, both listing the finding")
+        + remove_folder())
+
+    return test_case("TC11_AlertWebhookPayloads", "TC11 Teams and Slack alert payloads", steps,
+                     CONFIG_VARS + FIXTURE_VARS + (("x:String", "problems"),))
+
+
 # --------------------------------------------------------------------------
 GENERATORS = {
     "TC01_R1_TimestampCheck.xaml": tc01,
@@ -423,6 +772,10 @@ GENERATORS = {
     "TC05_R5_SequenceValidation.xaml": tc05,
     "TC06_R6_SmartContractEvent.xaml": tc06,
     "TC07_AuditChain_TamperEvident.xaml": tc07,
+    "TC08_FieldMapping_ChainAgnostic.xaml": tc08,
+    "TC09_PdfAuditReport.xaml": tc09,
+    "TC10_ReviewForm_Timeout.xaml": tc10,
+    "TC11_AlertWebhookPayloads.xaml": tc11,
 }
 
 
@@ -443,7 +796,10 @@ def register_in_project_json(file_names: list[str]) -> None:
     for name in file_names:
         rel = f"Tests\\{name}"
         if rel not in by_name:
-            by_name[rel] = {"editingStatus": "InProgress", "testCaseId": "", "fileName": rel}
+            # The same shape Studio writes when a workflow is marked as a test case.
+            by_name[rel] = {"editingStatus": "InProgress",
+                            "testCaseId": str(uuid.uuid5(uuid.NAMESPACE_URL, "blv-testcase/" + name)),
+                            "testCaseType": "TestCase", "fileName": rel}
 
     design["fileInfoCollection"] = [by_name[k] for k in sorted(by_name)]
 
@@ -453,7 +809,7 @@ def register_in_project_json(file_names: list[str]) -> None:
     eps = data.setdefault("entryPoints", [])
     known = {e.get("filePath") for e in eps}
     for name in file_names:
-        rel = f"Tests\{name}"
+        rel = f"Tests\\{name}"
         if rel not in known:
             eps.append({
                 "filePath": rel,

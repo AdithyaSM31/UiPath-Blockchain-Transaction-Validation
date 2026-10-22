@@ -1,0 +1,91 @@
+<Activity mc:Ignorable="sap sap2010" x:Class="_14_Finalise_Run" mva:VisualBasic.Settings="{x:Null}"
+ xmlns="http://schemas.microsoft.com/netfx/2009/xaml/activities"
+ xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+ xmlns:mva="clr-namespace:Microsoft.VisualBasic.Activities;assembly=System.Activities"
+ xmlns:njl="clr-namespace:Newtonsoft.Json.Linq;assembly=Newtonsoft.Json"
+ xmlns:s="clr-namespace:System;assembly=System.Private.CoreLib"
+ xmlns:sap="http://schemas.microsoft.com/netfx/2009/xaml/activities/presentation"
+ xmlns:sap2010="http://schemas.microsoft.com/netfx/2010/xaml/activities/presentation"
+ xmlns:scg="clr-namespace:System.Collections.Generic;assembly=System.Private.CoreLib"
+ xmlns:sco="clr-namespace:System.Collections.ObjectModel;assembly=mscorlib"
+ xmlns:sd="clr-namespace:System.Data;assembly=System.Data.Common"
+ xmlns:ui="http://schemas.uipath.com/workflow/activities"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <x:Members>
+    <x:Property Name="in_Config" Type="InArgument(scg:Dictionary(x:String, x:Object))" />
+    <x:Property Name="in_dtRules" Type="InArgument(sd:DataTable)" />
+    <x:Property Name="in_Stats" Type="InArgument(scg:Dictionary(x:String, x:Object))" />
+    <x:Property Name="io_dtResults" Type="InOutArgument(sd:DataTable)" />
+    <x:Property Name="out_dtExceptions" Type="OutArgument(sd:DataTable)" />
+    <x:Property Name="out_ReportPath" Type="OutArgument(x:String)" />
+    <x:Property Name="out_PdfPath" Type="OutArgument(x:String)" />
+    <x:Property Name="out_DashboardPath" Type="OutArgument(x:String)" />
+    <x:Property Name="out_ChainValid" Type="OutArgument(x:Boolean)" />
+  </x:Members>
+
+  <TextExpression.NamespacesForImplementation>
+    <sco:Collection x:TypeArguments="x:String">
+      <x:String>System.Activities</x:String>
+      <x:String>System.Activities.Statements</x:String>
+      <x:String>System.Activities.Expressions</x:String>
+      <x:String>System.Activities.Validation</x:String>
+      <x:String>System.Activities.XamlIntegration</x:String>
+      <x:String>Microsoft.VisualBasic</x:String>
+      <x:String>Microsoft.VisualBasic.Activities</x:String>
+      <x:String>System</x:String>
+      <x:String>System.Collections</x:String>
+      <x:String>System.Collections.Generic</x:String>
+      <x:String>System.Collections.ObjectModel</x:String>
+      <x:String>System.Data</x:String>
+      <x:String>System.Diagnostics</x:String>
+      <x:String>System.Drawing</x:String>
+      <x:String>System.Globalization</x:String>
+      <x:String>System.IO</x:String>
+      <x:String>System.Linq</x:String>
+      <x:String>System.Net.Mail</x:String>
+      <x:String>System.Security.Cryptography</x:String>
+      <x:String>System.Text</x:String>
+      <x:String>System.Xml</x:String>
+      <x:String>System.Xml.Linq</x:String>
+      <x:String>Newtonsoft.Json</x:String>
+      <x:String>Newtonsoft.Json.Linq</x:String>
+      <x:String>UiPath.Core</x:String>
+      <x:String>UiPath.Core.Activities</x:String>
+      <x:String>System.Windows.Markup</x:String>
+    </sco:Collection>
+  </TextExpression.NamespacesForImplementation>
+  <TextExpression.ReferencesForImplementation>
+    <sco:Collection x:TypeArguments="AssemblyReference">
+      <AssemblyReference>System.Activities</AssemblyReference>
+      <AssemblyReference>Microsoft.VisualBasic</AssemblyReference>
+      <AssemblyReference>System.Private.CoreLib</AssemblyReference>
+      <AssemblyReference>mscorlib</AssemblyReference>
+      <AssemblyReference>System.Data</AssemblyReference>
+      <AssemblyReference>System</AssemblyReference>
+      <AssemblyReference>System.Linq</AssemblyReference>
+      <AssemblyReference>System.Data.Common</AssemblyReference>
+      <AssemblyReference>System.Drawing</AssemblyReference>
+      <AssemblyReference>System.Drawing.Primitives</AssemblyReference>
+      <AssemblyReference>System.Drawing.Common</AssemblyReference>
+      <AssemblyReference>System.Core</AssemblyReference>
+      <AssemblyReference>System.Runtime</AssemblyReference>
+      <AssemblyReference>System.Security.Cryptography</AssemblyReference>
+      <AssemblyReference>System.Xml</AssemblyReference>
+      <AssemblyReference>System.Xml.Linq</AssemblyReference>
+      <AssemblyReference>PresentationFramework</AssemblyReference>
+      <AssemblyReference>WindowsBase</AssemblyReference>
+      <AssemblyReference>PresentationCore</AssemblyReference>
+      <AssemblyReference>System.Xaml</AssemblyReference>
+      <AssemblyReference>Newtonsoft.Json</AssemblyReference>
+      <AssemblyReference>UiPath.System.Activities</AssemblyReference>
+      <AssemblyReference>UiPath.UiAutomation.Activities</AssemblyReference>
+      <AssemblyReference>UiPath.Excel.Activities</AssemblyReference>
+      <AssemblyReference>UiPath.Excel</AssemblyReference>
+      <AssemblyReference>UiPath.Mail.Activities</AssemblyReference>
+      <AssemblyReference>UiPath.Web.Activities</AssemblyReference>
+      <AssemblyReference>System.Data.DataSetExtensions</AssemblyReference>
+      <AssemblyReference>System.Net.Mail</AssemblyReference>
+    </sco:Collection>
+  </TextExpression.ReferencesForImplementation>
+  <Sequence DisplayName="14 - Finalise the run"><Sequence.Variables><Variable x:TypeArguments="x:Int32" Name="escalationCount" /><Variable x:TypeArguments="x:String" Name="auditPath" /><Variable x:TypeArguments="x:String" Name="headHash" /><Variable x:TypeArguments="x:String" Name="chainReport" /><Variable x:TypeArguments="x:String" Name="alertPath" /><Variable x:TypeArguments="x:String" Name="summaryPath" /></Sequence.Variables><ui:InvokeWorkflowFile DisplayName="Invoke 06 - Human-in-the-loop escalation" WorkflowFileName="Workflows\06_HumanInTheLoop_Escalation.xaml"><ui:InvokeWorkflowFile.Arguments><scg:Dictionary x:TypeArguments="x:String, Argument"><InArgument x:TypeArguments="scg:Dictionary(x:String, x:Object)" x:Key="in_Config">[in_Config]</InArgument><InOutArgument x:TypeArguments="sd:DataTable" x:Key="io_dtResults">[io_dtResults]</InOutArgument><OutArgument x:TypeArguments="x:Int32" x:Key="out_EscalationCount">[escalationCount]</OutArgument></scg:Dictionary></ui:InvokeWorkflowFile.Arguments></ui:InvokeWorkflowFile><Assign DisplayName="Assign - mark end of Escalate phase"><Assign.To><OutArgument x:TypeArguments="x:Object">[in_Config(&quot;Mark_Escalate&quot;)]</OutArgument></Assign.To><Assign.Value><InArgument x:TypeArguments="x:Object">[DateTime.UtcNow]</InArgument></Assign.Value></Assign><ui:InvokeWorkflowFile DisplayName="Invoke 10 - Append audit log" WorkflowFileName="Workflows\10_AuditLog_Chained.xaml"><ui:InvokeWorkflowFile.Arguments><scg:Dictionary x:TypeArguments="x:String, Argument"><InArgument x:TypeArguments="scg:Dictionary(x:String, x:Object)" x:Key="in_Config">[in_Config]</InArgument><InArgument x:TypeArguments="sd:DataTable" x:Key="in_dtResults">[io_dtResults]</InArgument><OutArgument x:TypeArguments="x:String" x:Key="out_AuditPath">[auditPath]</OutArgument><OutArgument x:TypeArguments="x:String" x:Key="out_HeadHash">[headHash]</OutArgument></scg:Dictionary></ui:InvokeWorkflowFile.Arguments></ui:InvokeWorkflowFile><ui:InvokeWorkflowFile DisplayName="Invoke 12 - Verify audit chain" WorkflowFileName="Workflows\12_Verify_AuditChain.xaml"><ui:InvokeWorkflowFile.Arguments><scg:Dictionary x:TypeArguments="x:String, Argument"><InArgument x:TypeArguments="x:String" x:Key="in_AuditPath">[auditPath]</InArgument><OutArgument x:TypeArguments="x:Boolean" x:Key="out_IsValid">[out_ChainValid]</OutArgument><OutArgument x:TypeArguments="x:String" x:Key="out_Report">[chainReport]</OutArgument></scg:Dictionary></ui:InvokeWorkflowFile.Arguments></ui:InvokeWorkflowFile><Assign DisplayName="Assign - mark end of AuditTrail phase"><Assign.To><OutArgument x:TypeArguments="x:Object">[in_Config(&quot;Mark_AuditTrail&quot;)]</OutArgument></Assign.To><Assign.Value><InArgument x:TypeArguments="x:Object">[DateTime.UtcNow]</InArgument></Assign.Value></Assign><ui:InvokeCode DisplayName="Invoke Code - refresh exceptions with review decisions" Language="VBNet" Code="' Rebuild the exceptions table from the results AFTER human review, so the reports and&#xA;' alerts show the reviewer's decision next to each finding.&#xA;Dim ex As DataTable = in_dtResults.Clone()&#xA;ex.TableName = &quot;Exceptions&quot;&#xA;For Each r As DataRow In in_dtResults.Rows&#xA;    If Convert.ToString(r(&quot;ValidationStatus&quot;)) &lt;&gt; &quot;PASS&quot; Then ex.ImportRow(r)&#xA;Next&#xA;out_dtExceptions = ex"><ui:InvokeCode.Arguments><scg:Dictionary x:TypeArguments="x:String, Argument"><InArgument x:TypeArguments="sd:DataTable" x:Key="in_dtResults">[io_dtResults]</InArgument><OutArgument x:TypeArguments="sd:DataTable" x:Key="out_dtExceptions">[out_dtExceptions]</OutArgument></scg:Dictionary></ui:InvokeCode.Arguments></ui:InvokeCode><ui:InvokeWorkflowFile DisplayName="Invoke 07 - Excel report" WorkflowFileName="Workflows\07_Report_Excel.xaml"><ui:InvokeWorkflowFile.Arguments><scg:Dictionary x:TypeArguments="x:String, Argument"><InArgument x:TypeArguments="scg:Dictionary(x:String, x:Object)" x:Key="in_Config">[in_Config]</InArgument><InArgument x:TypeArguments="sd:DataTable" x:Key="in_dtResults">[io_dtResults]</InArgument><InArgument x:TypeArguments="sd:DataTable" x:Key="in_dtExceptions">[out_dtExceptions]</InArgument><InArgument x:TypeArguments="sd:DataTable" x:Key="in_dtRules">[in_dtRules]</InArgument><InArgument x:TypeArguments="scg:Dictionary(x:String, x:Object)" x:Key="in_Stats">[in_Stats]</InArgument><OutArgument x:TypeArguments="x:String" x:Key="out_ReportPath">[out_ReportPath]</OutArgument></scg:Dictionary></ui:InvokeWorkflowFile.Arguments></ui:InvokeWorkflowFile><ui:InvokeWorkflowFile DisplayName="Invoke 08 - PDF audit report" WorkflowFileName="Workflows\08_Report_PDF.xaml"><ui:InvokeWorkflowFile.Arguments><scg:Dictionary x:TypeArguments="x:String, Argument"><InArgument x:TypeArguments="scg:Dictionary(x:String, x:Object)" x:Key="in_Config">[in_Config]</InArgument><InArgument x:TypeArguments="sd:DataTable" x:Key="in_dtResults">[io_dtResults]</InArgument><InArgument x:TypeArguments="sd:DataTable" x:Key="in_dtRules">[in_dtRules]</InArgument><InArgument x:TypeArguments="scg:Dictionary(x:String, x:Object)" x:Key="in_Stats">[in_Stats]</InArgument><InArgument x:TypeArguments="x:String" x:Key="in_AuditPath">[auditPath]</InArgument><InArgument x:TypeArguments="x:String" x:Key="in_HeadHash">[headHash]</InArgument><InArgument x:TypeArguments="x:Boolean" x:Key="in_ChainValid">[out_ChainValid]</InArgument><InArgument x:TypeArguments="x:String" x:Key="in_ChainReport">[chainReport]</InArgument><InArgument x:TypeArguments="x:String" x:Key="in_ReportPath">[out_ReportPath]</InArgument><OutArgument x:TypeArguments="x:String" x:Key="out_PdfPath">[out_PdfPath]</OutArgument></scg:Dictionary></ui:InvokeWorkflowFile.Arguments></ui:InvokeWorkflowFile><Assign DisplayName="Assign - mark end of Reports phase"><Assign.To><OutArgument x:TypeArguments="x:Object">[in_Config(&quot;Mark_Reports&quot;)]</OutArgument></Assign.To><Assign.Value><InArgument x:TypeArguments="x:Object">[DateTime.UtcNow]</InArgument></Assign.Value></Assign><ui:InvokeWorkflowFile DisplayName="Invoke 09 - Anomaly alerts" WorkflowFileName="Workflows\09_Alert_Email.xaml"><ui:InvokeWorkflowFile.Arguments><scg:Dictionary x:TypeArguments="x:String, Argument"><InArgument x:TypeArguments="scg:Dictionary(x:String, x:Object)" x:Key="in_Config">[in_Config]</InArgument><InArgument x:TypeArguments="sd:DataTable" x:Key="in_dtExceptions">[out_dtExceptions]</InArgument><InArgument x:TypeArguments="scg:Dictionary(x:String, x:Object)" x:Key="in_Stats">[in_Stats]</InArgument><InArgument x:TypeArguments="x:String" x:Key="in_ReportPath">[out_ReportPath]</InArgument><InArgument x:TypeArguments="x:String" x:Key="in_PdfPath">[out_PdfPath]</InArgument><InArgument x:TypeArguments="x:String" x:Key="in_HeadHash">[headHash]</InArgument><InArgument x:TypeArguments="x:String" x:Key="in_ChainReport">[chainReport]</InArgument><OutArgument x:TypeArguments="x:String" x:Key="out_AlertPath">[alertPath]</OutArgument></scg:Dictionary></ui:InvokeWorkflowFile.Arguments></ui:InvokeWorkflowFile><Assign DisplayName="Assign - mark end of Alerts phase"><Assign.To><OutArgument x:TypeArguments="x:Object">[in_Config(&quot;Mark_Alerts&quot;)]</OutArgument></Assign.To><Assign.Value><InArgument x:TypeArguments="x:Object">[DateTime.UtcNow]</InArgument></Assign.Value></Assign><ui:InvokeWorkflowFile DisplayName="Invoke 11 - KPI summary and run history" WorkflowFileName="Workflows\11_Dashboard_Summary.xaml"><ui:InvokeWorkflowFile.Arguments><scg:Dictionary x:TypeArguments="x:String, Argument"><InArgument x:TypeArguments="scg:Dictionary(x:String, x:Object)" x:Key="in_Config">[in_Config]</InArgument><InArgument x:TypeArguments="sd:DataTable" x:Key="in_dtResults">[io_dtResults]</InArgument><InArgument x:TypeArguments="sd:DataTable" x:Key="in_dtRules">[in_dtRules]</InArgument><InArgument x:TypeArguments="scg:Dictionary(x:String, x:Object)" x:Key="in_Stats">[in_Stats]</InArgument><InArgument x:TypeArguments="x:String" x:Key="in_HeadHash">[headHash]</InArgument><InArgument x:TypeArguments="x:Boolean" x:Key="in_ChainValid">[out_ChainValid]</InArgument><OutArgument x:TypeArguments="x:String" x:Key="out_DashboardPath">[summaryPath]</OutArgument></scg:Dictionary></ui:InvokeWorkflowFile.Arguments></ui:InvokeWorkflowFile><ui:InvokeWorkflowFile DisplayName="Invoke 13 - HTML dashboard" WorkflowFileName="Workflows\13_Report_Dashboard.xaml"><ui:InvokeWorkflowFile.Arguments><scg:Dictionary x:TypeArguments="x:String, Argument"><InArgument x:TypeArguments="scg:Dictionary(x:String, x:Object)" x:Key="in_Config">[in_Config]</InArgument><InArgument x:TypeArguments="sd:DataTable" x:Key="in_dtResults">[io_dtResults]</InArgument><InArgument x:TypeArguments="sd:DataTable" x:Key="in_dtRules">[in_dtRules]</InArgument><InArgument x:TypeArguments="scg:Dictionary(x:String, x:Object)" x:Key="in_Stats">[in_Stats]</InArgument><InArgument x:TypeArguments="x:String" x:Key="in_AuditPath">[auditPath]</InArgument><InArgument x:TypeArguments="x:Boolean" x:Key="in_ChainValid">[out_ChainValid]</InArgument><InArgument x:TypeArguments="x:String" x:Key="in_ChainReport">[chainReport]</InArgument><OutArgument x:TypeArguments="x:String" x:Key="out_DashboardPath">[out_DashboardPath]</OutArgument></scg:Dictionary></ui:InvokeWorkflowFile.Arguments></ui:InvokeWorkflowFile><If DisplayName="If - audit chain verified" Condition="[out_ChainValid]"><If.Then><ui:LogMessage DisplayName="Log - [FINALISE] Outputs" Level="Info" Message="[&quot;[FINALISE] Outputs: &quot; &amp; Path.GetFileName(out_ReportPath) &amp; &quot;, &quot; &amp; Path.GetFileName(out_PdfPath) &amp; &quot;, &quot; &amp; Path.GetFileName(out_DashboardPath) &amp; &quot; | audit chain verified&quot;]" /></If.Then><If.Else><ui:LogMessage DisplayName="Log - [FINALISE] Audit chain verification FAILED" Level="Error" Message="[&quot;[FINALISE] Audit chain verification FAILED - &quot; &amp; chainReport]" /></If.Else></If></Sequence>
+</Activity>

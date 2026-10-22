@@ -2,10 +2,20 @@
 
 A UiPath RPA bot that reconciles on-chain logistics events against enterprise ERP records,
 flags anomalies against six configurable rules, escalates critical findings to a human, and
-writes a tamper-evident audit trail suitable for regulatory submission.
+writes a tamper-evident audit trail and a formal PDF audit report suitable for regulatory
+submission.
 
 **Course:** Robotic Process Automation
 **Team:** Adithya Sankar Menon (23BRS1079) · Nitin Nandakumar (23BRS1378)
+
+| Document | For |
+|---|---|
+| [docs/USER_GUIDE.md](docs/USER_GUIDE.md) | Running and configuring the bot; handover notes |
+| [docs/DECK_TRACEABILITY.md](docs/DECK_TRACEABILITY.md) | Every Review 1 commitment → where it is implemented → how it is checked |
+| [docs/ORCHESTRATOR_RUNBOOK.md](docs/ORCHESTRATOR_RUNBOOK.md) | Publishing, triggers, queues, monitoring |
+| [docs/RESULTS.md](docs/RESULTS.md) | Measured results |
+| [docs/SEEDED_ANOMALIES.md](docs/SEEDED_ANOMALIES.md) | Which record breaks which rule |
+| [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md) | Review walkthrough |
 
 ---
 
@@ -26,13 +36,12 @@ To verify every claim this project makes, end to end:
 powershell -File "tools\run_all_checks.ps1"
 ```
 
-That suite is the single source of truth for whether the project works. It currently
-reports **12/12 passing**, including the seven UiPath test cases.
-
-To run just the test cases:
+That suite is the single source of truth for whether the project works: 19 checks,
+including the eleven UiPath test cases. On a machine where Windows Smart App Control blocks
+newly built workflow assemblies, run the checks that don't need the robot:
 
 ```bash
-powershell -File "tools\run_tests.ps1"
+powershell -File "tools\run_all_checks.ps1" -StaticOnly
 ```
 
 ---
@@ -40,15 +49,17 @@ powershell -File "tools\run_tests.ps1"
 ## What a run does
 
 ```
-Config.xlsx ──┐
-              ├──> 00 Init ──> 01 Extract chain ──> 02 Extract ERP ──> 03 Map & join
-mock/API/web ─┘                                                              │
-                                                                             v
-       12 Verify chain <── 10 Audit log <── 06 Escalate <── 05 Validate (R1..R6)
-                 │                                                   │
-                 ├──> 07 Excel report · 11 Dashboard JSON · 09 Alert <┘
-                 └──> 13 HTML dashboard
+Config.xlsx ──> 00 Init ──> 01 Extract chain ──> 01d Field mapping ──> 02 Extract ERP ──> 03 Map & join
+                             mock / API / web      FieldMapping sheet     Excel / CSV / SQL    DECODE / LOOKUP
+                                                                                                    │
+                                                                                                    v
+   13 Dashboard <── 11 KPIs + history <── 09 E-mail · 09b Teams/Slack <── 07 Excel · 08 PDF <── 05 Validate R1..R6
+                                                                                ^                   │
+                                                               12 Verify chain <── 10 Audit log <── 06 Human review
 ```
+
+Steps 06–13 are `14_Finalise_Run`, shared by batch runs and by the queue Performer. Every
+phase is timed; the dashboard shows the processing time per phase and trends across runs.
 
 A default run processes **48 transactions across 12 shipments** and reports
 `pass=40 warn=1 fail=7 escalations=1`. Those numbers are deterministic — the sample data
@@ -72,96 +83,106 @@ contains exactly one seeded anomaly per rule, documented in
 
 ```
 BlockchainLogisticsValidator/     the UiPath project - open this in Studio
-├── Main.xaml                     phase orchestration
+├── Main.xaml                     phase orchestration, timing, failure screenshot
 ├── Workflows/
-│   ├── 00_Init_ReadConfig        config, validation, path resolution
+│   ├── 00_Init_ReadConfig        config, defaults, fail-fast validation, path resolution
 │   ├── 01_Extract_Blockchain     dispatches to 01a mock / 01b API / 01c web
-│   ├── 02_Extract_Logistics      ERP master + expected milestones
-│   ├── 03_Preprocess_Map         normalise, decode, join chain to ERP
+│   ├── 01d_Apply_FieldMapping    raw records -> canonical transactions, per FieldMapping sheet
+│   ├── 02_Extract_Logistics      ERP from Excel, CSV or SQL (Database Connect)
+│   ├── 03_Preprocess_Map         shipment linking (DECODE / LOOKUP) and join to ERP
 │   ├── 05_Validate_Engine        runs the enabled rules from Config.xlsx
 │   │   └── Rules/R1..R6          one workflow per rule
-│   ├── 06_HumanInTheLoop_Escalation
+│   ├── 06_HumanInTheLoop_Escalation   review form / dialog / simulated / deferred
 │   ├── 07_Report_Excel           styled workbook with conditional formatting
-│   ├── 09_Alert_Email            composes the anomaly alert
+│   ├── 08_Report_PDF             formal PDF audit report
+│   ├── 09_Alert_Email            EML, SMTP or Outlook, with reports attached
+│   ├── 09b_Alert_Webhooks        Teams Adaptive Card and Slack message
 │   ├── 10_AuditLog_Chained       hash-chained audit trail
-│   ├── 11_Dashboard_Summary      KPI JSON for Power BI / Sheets
-│   ├── 12_Verify_AuditChain      standalone integrity check
+│   ├── 11_Dashboard_Summary      KPI JSON, run history, Power BI / Sheets push
+│   ├── 12_Verify_AuditChain      standalone integrity check (also an entry point)
 │   ├── 13_Report_Dashboard       self-contained HTML dashboard
-│   └── Queue/Dispatcher,Performer  Orchestrator queue mode
+│   ├── 14_Finalise_Run           06 -> 13, shared by batch and queue mode
+│   └── Queue/Dispatcher,Performer  Orchestrator queue mode (Performer is an entry point)
+├── Tests/TC01..TC11              UiPath test cases
 ├── Data/
-│   ├── Config.xlsx               the control panel - see below
-│   ├── Input/                    ERP workbook, tx map, mock chain feeds
-│   └── Output/                   reports, audit logs (generated)
+│   ├── Config.xlsx               the control panel
+│   ├── Input/                    ERP workbook, CSV exports, Access DB, tx map, chain feeds
+│   └── Output/                   reports, audit logs, screenshots (generated)
 build.ps1                         pack + analyze + run headlessly
-tools/                            data generator, oracle, demo scripts, acceptance suite
-docs/                             plan, runbook, demo script, results
+tools/                            generators, oracle, compile check, demos, acceptance suite
+docs/                             user guide, traceability, runbook, results, demo script
 ```
 
 ---
 
 ## Config.xlsx — the control panel
 
-Everything operational lives here, so the bot adapts without touching a workflow.
+Everything operational lives here, so the bot adapts without touching a workflow. Every
+setting is documented in [docs/USER_GUIDE.md §4](docs/USER_GUIDE.md#4-configxlsx-reference).
 
 | Sheet | What it controls |
 |---|---|
-| `Settings` | Data source mode, chain id, API endpoint and key, file paths, escalation, alerting, queue |
+| `Settings` | Sources (chain, ERP), mapping, escalation, alert channels, dashboard push, queue, output |
 | `ValidationRules` | Which rules run, their severity, thresholds and fail action |
 | `ApprovedWallets` | The partner whitelist R3 checks against |
-| `FieldMapping` | Blockchain field → logistics field, with the transform applied |
+| `FieldMapping` | Etherscan record field → canonical field, with the transform applied |
+| `FieldMapping_EvmEtl` | The same, for an ethereum-etl export (e.g. Hyperledger Besu) |
 | `EventSequence` | The milestone order R5 enforces, and each one's function selector |
 | `EventSignatures` | Function signatures, selectors and event topic hashes |
 
-Settings worth knowing:
+The switches worth knowing:
 
 - **`DataSourceMode`** — `MOCK` (default, offline), `API` (live Etherscan V2), `WEB`
-  (scrapes an explorer page). All three produce byte-identical validation results.
+  (scrapes an explorer page). All reach identical validation results.
+- **`FieldMappingSheet`** + **`ChainRecordsPath`** — read a feed with different field names.
+- **`LogisticsSourceMode`** — `EXCEL`, `CSV` or `SQL`.
+- **`MappingMode`** — `DECODE` (shipment key from call data) or `LOOKUP` (mapping file).
+- **`EscalationMode`** — `PROMPT` shows the review form (attended only), `SIMULATE` applies a
+  preset decision, `AUTO_LOG` defers. `PROMPT` downgrades to `AUTO_LOG` when `AttendedMode`
+  is false, so an unattended job can never hang.
+- **`AlertMode`** — `EML` writes the message to disk (default), `SMTP` or `OUTLOOK` sends it.
+  `TeamsWebhookUrl` / `SlackWebhookUrl` post to chat alongside.
 - **`RunMode`** — `BATCH` validates everything in one job; `DISPATCH` splits it into one
   Orchestrator queue item per shipment.
-- **`EscalationMode`** — `PROMPT` asks a reviewer (attended only), `SIMULATE` applies a preset
-  decision, `AUTO_LOG` defers. `PROMPT` automatically downgrades to `AUTO_LOG` when
-  `AttendedMode` is false, so an unattended job can never hang on a dialog.
-- **`AlertMode`** — `EML` writes the composed message to disk (default), `SMTP` actually sends.
 
-### Local overrides
-
-`Data\Config.local.json` overrides any `Settings` value and is **not** meant to be committed.
-Machine-specific output paths and real API keys belong there, so `Config.xlsx` stays portable
-and safe to hand in. `build.ps1` writes it automatically.
+`Data\Config.local.json` overrides any `Settings` value and is **not** committed — real API
+keys, SMTP passwords and webhook URLs belong there. `build.ps1 -Set @{...}` writes it.
 
 ---
 
 ## Notable design decisions
 
-**Extraction normalises; nothing downstream knows the source.** The mock reader, the live
-Etherscan reader and the web scraper all emit one identical `DataTable` schema. That is what
-makes the bot genuinely blockchain-agnostic rather than merely configurable — proven by
-`tools\chain_swap_demo.ps1`, which produces byte-identical validation results on Ethereum and
-Polygon with no workflow change.
+**Readers fetch; the mapping sheet translates.** The mock, API and web readers return the
+feed's records untouched. `01d_Apply_FieldMapping` builds the canonical transaction table
+purely from the selected FieldMapping sheet — field names, ABI argument positions, timestamp
+formats. A chain or exporter with a different schema needs a different sheet, not a
+different workflow; `tools\chain_swap_demo.ps1` proves it on three feeds and two schemas.
+
+**Every source lands in the same typed tables.** Excel, CSV and SQL ERP data are
+canonicalised once in `02`, so rules never care where the data came from.
 
 **Rules are set-based, not row-based.** Each rule is its own workflow but receives the whole
 results table. Duplicates (R4), ordering (R5) and required events (R6) compare rows against
-one another and cannot be evaluated a row at a time. This also means 6 workflow invocations
-per run instead of 288.
+one another and cannot be evaluated a row at a time.
 
-**The queue work-unit is a shipment, not a transaction.** For the same reason: a performer
-handed a single transaction could not evaluate half the rules. No rule reaches across
-shipments, so a shipment is the smallest split that keeps every rule meaningful.
+**The queue work-unit is a shipment, not a transaction.** For the same reason. The Performer
+drains the queue in one job and then runs the same finalise pipeline as a batch run, so queue
+mode produces the same audit trail and reports.
 
-**Structure in XAML, algorithms in `Invoke Code`.** Sequences, branching, Excel and mail
-activities stay visual so the project reads as real RPA in the designer; ABI decoding, hashing
-and the sequence state machine live in VB code activities. This is ordinary production UiPath
-practice.
+**The human decision is evidence.** Review happens before the audit log is written, so the
+reviewer's decision, name and note are hashed into the chain like the machine's verdict.
 
-**The dashboard is generated by the bot, not hand-made.** `13_Report_Dashboard` writes a
-single self-contained HTML file — no server, no CDN, no external stylesheet — so it opens
-with a double click on any machine and survives being emailed. Its run-history table is
-read back out of the append-only audit log rather than kept separately, so the history
-cannot drift from the evidence it reports on.
+**Structure in XAML, algorithms in `Invoke Code`.** Sequences, branching, Excel, database,
+mail and HTTP activities stay visual; ABI decoding, hashing, PDF layout and the sequence
+state machine live in VB code activities. `tools\compile_check.ps1` compiles all of that code
+without running the robot.
 
-**Reports are written with ClosedXML, not Excel activities.** UiPath exposes no
-conditional-formatting activity, and ClosedXML needs no Excel process — so the styled report
-is produced identically on an unattended robot with no Office installed.
+**Reports need no Office.** The Excel report is written with ClosedXML and the PDF directly
+as PDF 1.4 with the standard fonts, so an unattended robot produces identical files.
+
+**The dashboard is generated by the bot.** One self-contained HTML file — no server, no CDN.
+Run history comes from the append-only audit log and `RunHistory.csv`, not from a separate
+store that could drift.
 
 ---
 
@@ -169,12 +190,14 @@ is produced identically on an unattended robot with no Office installed.
 
 | Tool | What it proves |
 |---|---|
-| `tools\run_all_checks.ps1` | Everything below, in one command |
-| `tools\verify_seeded_data.py` | Independent oracle: the anomalies exist and the ABI decodes |
+| `tools\run_all_checks.ps1` | Everything below, in one command (19 checks) |
+| `tools\verify_seeded_data.py` | Independent oracle: the anomalies exist, the ABI decodes, every alternative feed and ERP source carries identical data |
+| `tools\compile_check.ps1` | Every Invoke Code body compiles against the robot's references |
+| `build.ps1 -Analyze` | Workflow Analyzer, no Error-severity findings |
+| `tools\run_tests.ps1` | The eleven UiPath test cases |
 | `tools\tamper_test.ps1` | Editing the audit log is detected at the exact line |
-| `tools\chain_swap_demo.ps1` | Identical results across two blockchains, config change only |
-| `tools\run_tests.ps1` | The seven UiPath test cases |
-| `build.ps1 -Analyze` | UiPath Workflow Analyzer, no Error-severity findings |
+| `tools\chain_swap_demo.ps1` | Identical results on Ethereum, Polygon and a Besu ethereum-etl export |
+| `tools\capture_server.ps1` | Local SMTP + webhook stand-in used to test alert delivery offline |
 
 The dataset oracle is a deliberately separate implementation from the generator. If the bot
 and the oracle ever disagree, one of them is wrong and the run is not signed off.
@@ -184,50 +207,58 @@ and the oracle ever disagree, one of them is wrong and the run is not signed off
 ## Regenerating
 
 ```bash
-python tools\generate_sample_data.py     # sample data (deterministic)
-python tools\build_workflows.py          # regenerate the .xaml files
+python tools\generate_sample_data.py          # sample data (deterministic)
+powershell -File tools\build_erp_database.ps1  # SQL copy of the ERP data
+python tools\build_workflows.py               # the workflow .xaml files + entry points
+python tools\build_tests.py                   # the test cases
 ```
 
-The `.xaml` files are the deliverable and are edited in Studio like any others.
-`build_workflows.py` exists so the boilerplate stayed consistent while the project was being
-built out — **once you start editing a workflow by hand in Studio, remove it from that
-script's `GENERATORS` map**, or the next run will overwrite your changes.
+The `.xaml` files are the deliverable and are edited in Studio like any others. The
+generators keep argument signatures consistent across files — **once you start editing a
+workflow by hand in Studio, remove it from that script's `GENERATORS` map**, or the next run
+will overwrite your changes.
 
 ---
 
 ## Testing
 
-Seven UiPath test cases live in `Tests/` and appear in Studio's **Test Explorer**
-(Test tab → Run All Tests). Six drive one validation rule each against a hand-built
-fixture; the seventh is an integration test that writes an audit chain, tampers with it,
-and asserts the tampering is detected.
+Eleven UiPath test cases live in `Tests/` and appear in Studio's **Test Explorer**
+(Test tab → Run All Tests):
 
-They are unit tests, not a replay of the sample data — they cover edge cases the sample
-data does not: a drift exactly at the tolerance boundary, a quantity tolerance that
-absorbs a shortfall, a checksummed address matching a lower-case whitelist entry, and the
-same transaction hash on two different shipments (which must *not* count as a duplicate).
+| Test | Covers |
+|---|---|
+| TC01–TC06 | One validation rule each, against hand-built fixtures and edge cases the sample data does not have |
+| TC07 | Audit chain: write, verify, tamper, detect at the right line; input-data hash recorded |
+| TC08 | Field mapping: the Etherscan and ethereum-etl feeds produce identical canonical transactions; an incomplete sheet is rejected |
+| TC09 | PDF audit report: header, xref offsets, objects and page tree are consistent |
+| TC10 | Review form: pauses, times out to DEFERRED, attributes the timeout, keeps an evidence image |
+| TC11 | Teams Adaptive Card and Slack Block Kit payloads |
 
 Each asserts with `VerifyExpression` for the Test Explorer report, then throws if any
-assertion failed, so a regression is also visible as a non-zero exit code in CI.
+assertion failed, so a regression is also visible as a non-zero exit code.
 
-> One packaging quirk worth knowing: a *process* package deliberately excludes anything
-> registered in `designOptions.fileInfoCollection`, because test cases normally ship in a
-> separate test package. `tools\run_tests.ps1` therefore unregisters them just long enough
-> to pack, runs them as entry points, and restores `project.json` afterwards.
+> A *process* package deliberately excludes anything registered in
+> `designOptions.fileInfoCollection`, because test cases normally ship in a separate test
+> package. `tools\run_tests.ps1` therefore unregisters them just long enough to pack, runs
+> them as entry points, and restores `project.json` afterwards.
 
 ## Known gaps
 
-- **Orchestrator queue activities are untested against a live tenant.** `Dispatcher` and
-  `Performer` compile and the dispatcher is fully exercised in `DRYRUN` mode (48
-  transactions → 12 payloads), but `Add Queue Item` / `Get Transaction Item` have never run
-  against a real queue. See [docs/ORCHESTRATOR_RUNBOOK.md](docs/ORCHESTRATOR_RUNBOOK.md).
-- **`EscalationMode = PROMPT` has not been executed**, only `SIMULATE` and `AUTO_LOG`. The
-  dialog blocks on a desktop, so it cannot be verified headlessly — run it from Studio.
-- **WEB mode parses the explorer's HTML rather than driving a browser.** It works and is
-  covered by the acceptance suite, but it is not UiPath Data Scraping: UIAutomation 25.10
+- **Services this repository holds no credentials for.** Orchestrator queue activities
+  against a live queue, a live Etherscan API key, a real SMTP server or Outlook profile, and
+  real Teams/Slack channels. Each path is exercised locally — DRYRUN queue payloads through
+  the Performer, alerts through `tools\capture_server.ps1` — but the final hop is untested.
+  See [docs/ORCHESTRATOR_RUNBOOK.md](docs/ORCHESTRATOR_RUNBOOK.md).
+- **WEB mode parses the explorer's HTML rather than driving a browser.** UIAutomation 25.10
   removed the classic `ExtractStructuredData`, its replacement needs recorder-generated
-  descriptors, and the UiPath browser extension is not installed on this machine. See the
+  descriptors, and the UiPath browser extension is not installed on the build machine. See the
   docstring in `01c_Extract_FromExplorerUI` for the upgrade path.
-- **Excel Application Scope drives interactive Excel COM** for reading `Config.xlsx` and the
-  ERP workbook. Fine attended; for a fully unattended robot, consider moving those reads to
-  ClosedXML as the report writer already does.
+- **The review form is built in the workflow**, not designed as a Studio `.uiform`: UiPath
+  Forms 25.10 files can only be authored in Studio's visual designer. `ReviewUi = DIALOG`
+  falls back to Input Dialog.
+- **Excel Application Scope drives interactive Excel COM** for `Config.xlsx`, the ERP
+  workbook and the mapping file, so the robot machine needs Excel. The ERP data itself can
+  come from CSV or SQL instead.
+- **The audit log is single-writer.** Robots running in parallel each need their own output root.
+- **Verification status of this release** is recorded at the end of
+  [docs/DECK_TRACEABILITY.md](docs/DECK_TRACEABILITY.md#verification-status).

@@ -1,5 +1,45 @@
 # Results
 
+## 0. Release after the Review 1 audit — 16 Sep 2026
+
+The project was audited slide by slide against *RPA Project Review 1.pptx*
+([DECK_TRACEABILITY.md](DECK_TRACEABILITY.md)). This release closes the gaps found:
+
+| Gap against the deck | Now |
+|---|---|
+| No PDF audit log (slide 7, objective 5) | `08_Report_PDF` |
+| No Teams / Slack alerts (objective 4), no Outlook mail (slide 7) | `09b_Alert_Webhooks`; `AlertMode = OUTLOOK`; SMTP now attaches the reports and honours `SmtpUseSsl` |
+| No CSV or SQL ERP source; no Database Connect (slide 5) | `02_Extract_Logistics` EXCEL / CSV / SQL (Database Connect over ODBC) |
+| `FieldMapping` sheet read but never applied; `MappingMode = LOOKUP` not implemented (slide 5, Novelty 3) | `01d_Apply_FieldMapping`; LOOKUP in `03`; a third, differently-shaped feed (Hyperledger Besu ethereum-etl export) |
+| No processing times or trends on the dashboard (objective 6) | Phase timings, `RunHistory.csv`, trend chart; fail % and top anomaly types in the KPI JSON; Power BI / Sheets push |
+| Review dialog rather than a form (Novelty 2) | Review form with every fact, reviewer name, note, timeout and evidence image |
+| Audit entries did not carry an input-data hash (Novelty 4) | `InputDataHash` column, hashed into `RecordHash` |
+| Performer could not run as its own process and produced no audit or reports | Standalone entry point, drains the queue, runs the full finalise pipeline |
+| `Settings` rows that had no effect (`ProjectName`, `ExplorerAddressUrl`, `ShipmentsSheet`, `ShipmentEventsSheet`, `MappingMode`, `TxShipmentMapFile`, the three tolerance settings, `EscalationSeverity`, `SmtpUseSsl`, `LogLevel`, the three folder settings) | All 60 settings are read by the bot |
+| `generate_sample_data.py` dropped six settings on regeneration, which would break the bot | Fixed; regenerated inputs are unchanged apart from the intended additions |
+| A failed run left no evidence | Logged, screenshotted, re-thrown |
+
+**Verified on 16 Sep 2026 (development laptop):**
+
+| Check | Result |
+|---|---|
+| Dataset oracle, including the new feed, CSV and mapping-file cross-checks | all passed |
+| `tools\compile_check.ps1` — every Invoke Code body in the workflows and tests | 59/59 compile |
+| `UiRobot pack` — all workflows and all 11 test cases load and compile | passed |
+| Workflow Analyzer | 0 Error-severity findings |
+| End-to-end batch run with the new configuration loading, extraction, field mapping, ERP canonicalisation, mapping join and validation engine | `total=48 pass=40 warn=1 fail=7 escalations=1` — identical to the original release |
+
+**Pending:** after that run, Windows Smart App Control on the laptop began blocking each
+newly compiled workflow assembly, so the remaining end-to-end checks — suite checks #4–#18
+and test cases TC01–TC11 — have not yet been executed against this release. Run
+`powershell -File tools\run_all_checks.ps1` on a machine without Smart App Control and
+record the outcome here.
+
+The sections below are the measurements from the original release (11 Sep 2026) and remain
+the reference numbers.
+
+---
+
 Measured on the development machine (Windows 11, UiPath Studio 25.10.15, Excel 16.0),
 running `MOCK` data source in `BATCH` mode. Every figure here is reproducible with
 `powershell -File tools\run_all_checks.ps1`.
@@ -213,3 +253,8 @@ Stated plainly so the limits are not overclaimed:
   per run has not been measured.
 - **Concurrency.** Two robots appending to one audit file would interleave and break the
   chain. Each robot needs its own audit folder.
+
+> The limits above were written for the original release. Since then the Performer path is
+> exercised in DRYRUN end to end (suite check #16) and alert delivery against a local capture
+> server (suite check #15); the live Orchestrator queue, a live Etherscan key and real
+> mail/chat endpoints remain outside what the repository can test.
